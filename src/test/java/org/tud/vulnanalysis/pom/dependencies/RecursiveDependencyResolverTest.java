@@ -7,6 +7,7 @@ import org.tud.vulnanalysis.pom.PomFileDownloadResponse;
 import org.tud.vulnanalysis.pom.PomFileUtils;
 
 import java.io.File;
+import java.io.IOException;
 import java.nio.file.Paths;
 import java.util.Objects;
 import java.util.Set;
@@ -20,13 +21,13 @@ public class RecursiveDependencyResolverTest {
             new ArtifactIdentifier("io.quarkus","quarkus-rest-client-jsonb","1.11.4.Final");
 
 
-    private static File tempDir = new File("test-temp");
+    private static File tempDir = new File("test-temp/");
     private File pomFile = Paths.get(tempDir.getAbsolutePath(), "pom.xml").toFile();
     private File quarkusFile = Paths.get(tempDir.getAbsolutePath(), "quarkus.pom").toFile();
 
     @BeforeAll
     static void createTempDir(){
-        tempDir.mkdirs();
+        tempDir.mkdir();
     }
 
     @AfterAll
@@ -35,7 +36,7 @@ public class RecursiveDependencyResolverTest {
     }
 
     @BeforeEach
-    public void setUp(){
+    public void setUp() {
         if(pomFile.exists()){
             pomFile.delete();
         }
@@ -60,8 +61,7 @@ public class RecursiveDependencyResolverTest {
 
     @Test()
     @DisplayName("RecusiveResolver should deal with complicated poms")
-    public void testQuarkusPom(){
-
+    public void testQuarkusPom() {
         PomFileDownloadResponse response = PomFileUtils.downloadPomFile(quarkusIdent, quarkusFile);
 
         Assertions.assertTrue(response.getSuccess());
