@@ -37,7 +37,6 @@ public class PomFileUtils {
             return ident.getMavenCentralPomUri().toURL().openStream();
         }
         catch(Exception x){
-            x.printStackTrace();
             return null;
         }
 

@@ -6,9 +6,7 @@ import org.tud.vulnanalysis.model.ArtifactIdentifier;
 import org.tud.vulnanalysis.model.MavenArtifact;
 import org.tud.vulnanalysis.model.MavenCentralRepository;
 import org.tud.vulnanalysis.pom.PomFileDownloadResponse;
-import org.tud.vulnanalysis.pom.dependencies.DependencyResolverProvider;
-import org.tud.vulnanalysis.pom.dependencies.RecursiveDependencyResolver;
-import org.tud.vulnanalysis.pom.dependencies.ResolverResult;
+import org.tud.vulnanalysis.pom.dependencies.*;
 
 import java.io.File;
 import java.io.FileNotFoundException;
@@ -20,13 +18,16 @@ import java.util.Set;
 
 public class Miner {
 
+    private static DependencyResolverProvider ResolverProvider = DependencyResolverProvider.getInstance();
+
     public static void main(String[] args) throws IOException {
         int current = 0;
 
-        DependencyResolverProvider.getInstance().registerResolverType(RecursiveDependencyResolver.class);
+        ResolverProvider.registerResolverType(RecursiveDependencyResolver.class);
+        ResolverProvider.registerBackupResolverType(MvnPluginDependencyResolver.class);
 
         BufferedGAVIterator iterator =
-                new BufferedGAVIterator("C:\\Users\\Fujitsu\\Documents\\Temp\\my-maven-miner\\maven-index\\central-lucene-index");
+                new BufferedGAVIterator("C:\\Users\\Fujitsu\\Documents\\Research\\Vulnerabilities\\repos\\maven-miner\\index\\central-lucene-index");
 
         System.out.println("Building GAV index...");
         iterator.initializeIndex();
@@ -47,30 +48,45 @@ public class Miner {
 
             PomFileDownloadResponse response = repo.downloadPomFile(ident, output);
             if(!response.getSuccess()){
-                if (!(response.getException() instanceof FileNotFoundException))
+                if (!(response.getException() instanceof FileNotFoundException)){
                     System.err.println("Error while downloading!");
+                } else {
+                    System.err.println("Download failed with 404.");
+                }
                 current++;
                 continue;
             }
 
-            ResolverResult result = DependencyResolverProvider
-                    .getInstance()
+            ResolverResult result = ResolverProvider
                     .buildResolver(output, ident)
                     .resolveDependencies();
 
-            Set<ArtifactDependency> deps = result.getResults();
+            if(result.hasErrors()){
+                for(ResolverError e: result.getErrors()){
+                    System.err.println(e.toString());
+                }
+            }
 
-            if(deps == null){
-                deps = new HashSet<ArtifactDependency>();
-            } else {
+            if(result.hasErrors() && result.hasResults()){
+                System.err.println("Got " + result.getErrors().size() + " errors while resolving, falling back to secondary resolver ...");
+                result = ResolverProvider.buildBackupResolver(output, ident).resolveDependencies();
+            }
+            else if(result.hasErrors()){
+                System.err.println("Got " + result.getErrors().size() + " critical errors while resolving, not falling back.");
+            }
+
+            if(result.hasResults()){
+                MavenArtifact artifact = new MavenArtifact(ident, response.getLastModified(), result.getResults());
+                System.out.println(artifact);
                 output.delete();
                 tempDir.toFile().delete();
             }
+            else
+            {
+                System.err.println("No results for this artifact.");
+            }
 
-            MavenArtifact artifact = new MavenArtifact(ident, response.getLastModified(), deps);
-            System.out.println(artifact);
-
-            if(current > 888){
+            if(current > 330){
                 break;
             }
 

@@ -9,10 +9,12 @@ public class DependencyResolverProvider {
 
     private static DependencyResolverProvider theInstance;
     private Class<? extends DependencyResolver> resolverType;
+    private Class<? extends DependencyResolver> backupResolverType;
 
     private DependencyResolverProvider(){
         // The default resolver
         this.registerResolverType(MvnPluginDependencyResolver.class);
+        this.backupResolverType = null;
     }
 
     public DependencyResolver buildResolver(File pomFile, ArtifactIdentifier identifier){
@@ -24,8 +26,28 @@ public class DependencyResolverProvider {
         }
     }
 
+    public DependencyResolver buildBackupResolver(File pomFile, ArtifactIdentifier identifier){
+        if(this.backupResolverType == null)
+            return null;
+
+        try {
+            Constructor<? extends DependencyResolver> c =
+                    backupResolverType.getConstructor(File.class, ArtifactIdentifier.class);
+            return c.newInstance(pomFile, identifier);
+        } catch (Exception x){
+            return null;
+        }
+    }
+
     public void registerResolverType(Class<? extends DependencyResolver> resolver){
+        if(resolver == null){
+            throw new IllegalArgumentException("Primary resolver type cannot be null.");
+        }
         this.resolverType = resolver;
+    }
+
+    public void registerBackupResolverType(Class<? extends DependencyResolver> resolver){
+        this.backupResolverType = resolver;
     }
 
     public static DependencyResolverProvider getInstance() {

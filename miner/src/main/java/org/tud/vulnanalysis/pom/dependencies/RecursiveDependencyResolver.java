@@ -497,10 +497,13 @@ public class RecursiveDependencyResolver extends DependencyResolver {
                         try{
                             ArtifactDependency resolvedImportScopeDep = fullyResolveDependency(spec, level);
 
+                            if(resolvedImportScopeDep == null){
+                                throw new RuntimeException("Failed to resolve import scope dependency: " + dep);
+                            }
+
                             if(importScopeIdentifiers.get(level).contains(resolvedImportScopeDep)){
                                 continue;
                             }
-                            newImportScopeDeps = true;
 
                             InputStream dependencyInputStream = MavenCentralRepository.getInstance()
                                     .openPomFileInputStream(resolvedImportScopeDep);
@@ -517,11 +520,10 @@ public class RecursiveDependencyResolver extends DependencyResolver {
                             if(dependencyDoc == null){
                                 throw new RuntimeException("Failed to read import dependency pom: " + resolvedImportScopeDep);
                             }
-
+                            newImportScopeDeps = true;
                             processRawDependenciesInDocument(dependencyDoc, level, resolvedImportScopeDep,
                                     true);
                         } catch(Exception x) {
-                            System.err.println("Failed to resolve import-scope dependency: " + x.getMessage());
                             ResolverError error = new ResolverError.ParsingRelatedResolverError(
                                     "Failed to resolve import scope dependency", dep.toString(), x);
                             this.result.appendError(error);
