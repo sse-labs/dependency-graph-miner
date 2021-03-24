@@ -22,11 +22,15 @@ public class RecursiveDependencyResolverTest {
     private final ArtifactIdentifier artifactWithMissingVersions =
             new ArtifactIdentifier("com.highstreet-technologies.aaa","aaa-authn-api","0.12.1");
 
+    private final ArtifactIdentifier artifactWithIdentifierInterpolation =
+            new ArtifactIdentifier("org.apache.spark", "spark-repl_2.12", "2.4.4");
+
 
     private static File tempDir = new File("test-temp/");
     private File pomFile = Paths.get(tempDir.getAbsolutePath(), "pom.xml").toFile();
     private File quarkusFile = Paths.get(tempDir.getAbsolutePath(), "quarkus.pom").toFile();
     private File missingVersionsFile = Paths.get(tempDir.getAbsolutePath(), "missing.pom").toFile();
+    private File interpolationFile = Paths.get(tempDir.getAbsolutePath(), "interpolation.pom").toFile();
 
     @BeforeAll
     static void createTempDir(){
@@ -85,6 +89,22 @@ public class RecursiveDependencyResolverTest {
     }
 
     @Test()
+    @DisplayName("Recursive Resolver must deal with interpolation in artifact identifiers")
+    public void testInterpolation(){
+        PomFileDownloadResponse response = PomFileUtils.downloadPomFile(artifactWithIdentifierInterpolation,
+                interpolationFile);
+
+        Assertions.assertTrue(response.getSuccess());
+        Assertions.assertTrue(interpolationFile.exists());
+
+        IDependencyResolver res = new RecursiveDependencyResolver(interpolationFile, artifactWithIdentifierInterpolation);
+
+        Set<ArtifactDependency> deps = res.resolveDependencies();
+
+        Assertions.assertNotNull(deps);
+    }
+
+    @Test()
     @DisplayName("RecursiveResolver must deal with missing version definitions")
     public void testMissingVersions(){
         PomFileDownloadResponse response = PomFileUtils.downloadPomFile(artifactWithMissingVersions, missingVersionsFile);
@@ -136,6 +156,10 @@ public class RecursiveDependencyResolverTest {
 
         if(missingVersionsFile.exists()){
             missingVersionsFile.delete();
+        }
+
+        if(interpolationFile.exists()){
+            interpolationFile.delete();
         }
     }
 }

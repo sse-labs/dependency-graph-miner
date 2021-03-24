@@ -88,7 +88,7 @@ public class RecursiveDependencyResolver extends DependencyResolver {
             return null;
 
         if(dependency.Version == null){
-            DependencySpec specWithVersion = resolveMissingVersion(dependency, declarationLevel);
+            DependencySpec specWithVersion = resolveMissingVersion(dependencySpec, declarationLevel);
             if(specWithVersion == null){
                 System.err.println("Failed to resolve missing version for " + dependency.toString());
                 return null;
@@ -233,23 +233,28 @@ public class RecursiveDependencyResolver extends DependencyResolver {
         return null;
     }
 
-    private DependencySpec resolveMissingVersion(ArtifactDependency incompleteDependency, int startLevel){
+    private DependencySpec resolveMissingVersion(DependencySpec incompleteDependency, int startLevel){
         for(int i = startLevel; i < parsedPomFileHierarchy.size(); i++){
             // Look for version definition in management sections
             for(DependencySpec managementSpec: this.dependencyManagementSpecsPerHierarchyLevel.get(i)){
+
                 ArtifactDependency dep = managementSpec.Dependency;
-                if(dep.GroupId.equals(incompleteDependency.GroupId) &&
-                        dep.ArtifactId.equals(incompleteDependency.ArtifactId) &&
-                        dep.Version != null){
-                    return managementSpec;
+                if(dep.GroupId.equals(incompleteDependency.Dependency.GroupId)){
+                    //TODO: This might come back to haunt me..but it seems people actually use property
+                    //TODO: References in artifact identifiers inside dependencyManagement tags..We don't
+                    //TODO: want to resolve all management specs, so we resolve this on demand
+                    dep.ArtifactId = resolveAllReferencesInValue(dep.ArtifactId, incompleteDependency, startLevel);
+                    if(dep.ArtifactId.equals(incompleteDependency.Dependency.ArtifactId) && dep.Version != null){
+                        return managementSpec;
+                    }
                 }
             }
 
             // Backup: Look for version in "normal" dependency specs
             for(DependencySpec spec: this.dependencySpecsPerHierarchyLevel.get(i)){
                 ArtifactDependency dep = spec.Dependency;
-                if(dep.GroupId.equals(incompleteDependency.GroupId) &&
-                        dep.ArtifactId.equals(incompleteDependency.ArtifactId) &&
+                if(dep.GroupId.equals(incompleteDependency.Dependency.GroupId) &&
+                        dep.ArtifactId.equals(incompleteDependency.Dependency.ArtifactId) &&
                         dep.Version != null){
                     return spec;
                 }
