@@ -67,7 +67,7 @@ public class Miner {
             MavenArtifact artifact = new MavenArtifact(ident, response.getLastModified(), deps);
             System.out.println(artifact);
 
-            if(current > 2222){
+            if(current > 888){
                 break;
             }
 

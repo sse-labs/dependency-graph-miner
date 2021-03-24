@@ -119,6 +119,9 @@ public class RecursiveDependencyResolver extends DependencyResolver {
         Set<DependencySpec> rawSpecsOnLevel = this.dependencySpecsPerHierarchyLevel.get(level);
 
         for(DependencySpec spec: rawSpecsOnLevel){
+            if(spec.IsDeclaredInImportPom)
+                continue;
+
             ArtifactDependency resolvedDependency = fullyResolveDependency(spec, level);
 
             if(resolvedDependency == null)
@@ -272,7 +275,10 @@ public class RecursiveDependencyResolver extends DependencyResolver {
                 if(context == 0){ //Dependency management
                     this.dependencyManagementSpecsPerHierarchyLevel.get(level).add(spec);
                 }
-                else if(context == 2){
+                else if(context == 2){ //"Normal" Dependencies that are specified in a profile..Overapproximation
+                    //this.dependencySpecsPerHierarchyLevel.get(level).add(spec);
+                }
+                else if(context == 3){
                     this.dependencySpecsPerHierarchyLevel.get(level).add(spec);
                 }
                 //Drop plugin dependencies
@@ -312,11 +318,14 @@ public class RecursiveDependencyResolver extends DependencyResolver {
                 else if(tagname.equals("plugin")){
                     return 1;
                 }
+                else if(tagname.equals("profile")){
+                    return 2;
+                }
             }
             parentNode = parentNode.getParentNode();
         }
 
-        return 2;
+        return 3;
     }
 
     private ArtifactDependency readDependency(Element dependencyElement){
@@ -438,7 +447,6 @@ public class RecursiveDependencyResolver extends DependencyResolver {
                             if(importScopeIdentifiers.get(level).contains(resolvedImportScopeDep)){
                                 continue;
                             }
-
                             newImportScopeDeps = true;
 
                             InputStream dependencyInputStream = MavenCentralRepository.getInstance()

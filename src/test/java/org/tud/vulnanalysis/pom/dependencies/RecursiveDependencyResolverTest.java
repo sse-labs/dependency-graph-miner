@@ -7,7 +7,6 @@ import org.tud.vulnanalysis.pom.PomFileDownloadResponse;
 import org.tud.vulnanalysis.pom.PomFileUtils;
 
 import java.io.File;
-import java.io.IOException;
 import java.nio.file.Paths;
 import java.util.Objects;
 import java.util.Set;
@@ -20,10 +19,14 @@ public class RecursiveDependencyResolverTest {
     private final ArtifactIdentifier quarkusIdent =
             new ArtifactIdentifier("io.quarkus","quarkus-rest-client-jsonb","1.11.4.Final");
 
+    private final ArtifactIdentifier artifactWithMissingVersions =
+            new ArtifactIdentifier("com.highstreet-technologies.aaa","aaa-authn-api","0.12.1");
+
 
     private static File tempDir = new File("test-temp/");
     private File pomFile = Paths.get(tempDir.getAbsolutePath(), "pom.xml").toFile();
     private File quarkusFile = Paths.get(tempDir.getAbsolutePath(), "quarkus.pom").toFile();
+    private File missingVersionsFile = Paths.get(tempDir.getAbsolutePath(), "missing.pom").toFile();
 
     @BeforeAll
     static void createTempDir(){
@@ -82,6 +85,24 @@ public class RecursiveDependencyResolverTest {
     }
 
     @Test()
+    @DisplayName("RecursiveResolver must deal with missing version definitions")
+    public void testMissingVersions(){
+        PomFileDownloadResponse response = PomFileUtils.downloadPomFile(artifactWithMissingVersions, missingVersionsFile);
+
+        Assertions.assertTrue(response.getSuccess());
+        Assertions.assertTrue(missingVersionsFile.exists());
+
+        IDependencyResolver res = new RecursiveDependencyResolver(missingVersionsFile, artifactWithMissingVersions);
+
+        Set<ArtifactDependency> deps = res.resolveDependencies();
+
+        Assertions.assertNotNull(deps);
+        Assertions.assertFalse(deps.isEmpty());
+
+        Assertions.assertEquals(12, deps.size());
+    }
+
+    @Test()
     @DisplayName("RecursiveResolver should output the same as the MavenResolver")
     public void compareToMvnResolver(){
         IDependencyResolver mvnResolver = new MvnPluginDependencyResolver(pomFile, artifactIdent);
@@ -108,8 +129,13 @@ public class RecursiveDependencyResolverTest {
     @AfterEach
     public void destroy(){
         pomFile.delete();
+
         if(quarkusFile.exists()){
             quarkusFile.delete();
+        }
+
+        if(missingVersionsFile.exists()){
+            missingVersionsFile.delete();
         }
     }
 }
