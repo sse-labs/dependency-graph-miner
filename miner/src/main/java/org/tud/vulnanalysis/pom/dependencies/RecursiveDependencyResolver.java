@@ -15,6 +15,16 @@ import java.io.InputStream;
 import java.nio.file.Files;
 import java.util.*;
 
+/**
+ *  A dependency resolver implementation that uses XML parsing and on-demand loading of referenced POM files to
+ *  resolve dependencies. It is significantly faster than using the resolver that spawns a "real" Maven instance, but
+ *  does some overapproximations and is not able to resolve any kind of reference:
+ *      -   Dependency-Exclusions are not taken into consideration. There are cases where a dependency is defined in a POM,
+ *          but does not actually apply because of some exclusions in any of the parent POMs.
+ *      -   When resolving property values, this implementation only takes into account the parent hierarchy and directly
+ *          linked "import"-scope dependencies. However, a property may be defined in the parent hierarchy of an
+ *          "import"-scope dependency, which is not considered in this implementation.
+ */
 public class RecursiveDependencyResolver extends DependencyResolver {
 
     private DocumentBuilderFactory builderFactory;
@@ -28,6 +38,8 @@ public class RecursiveDependencyResolver extends DependencyResolver {
     private Hashtable<Integer, List<ArtifactIdentifier>> importScopeIdentifiers;
 
     private Set<ArtifactDependency> finalDependencySpecs;
+
+    private ResolverResult result;
 
     public RecursiveDependencyResolver(File pomFile, ArtifactIdentifier identifier){
         super(pomFile, identifier);
@@ -50,7 +62,9 @@ public class RecursiveDependencyResolver extends DependencyResolver {
     }
 
     @Override
-    public Set<ArtifactDependency> resolveDependencies() {
+    public ResolverResult resolveDependencies() {
+        this.result = new ResolverResult(this.identifier);
+
         try{
             Document pomDoc = parseXml(Files.newInputStream(this.pomFile.toPath()));
             if(pomDoc != null){
@@ -66,14 +80,17 @@ public class RecursiveDependencyResolver extends DependencyResolver {
 
                 // Use intermediate dictionaries to resolve missing versions / resolve property definitions
                 resolveDependencyVersionsInHierarchy(0);
+
+                result.setResults(this.finalDependencySpecs);
             }
 
         } catch (Exception x){
+            ResolverError error = new ResolverError("Uncaught exception while resolving dependencies", x);
+            result.appendError(error);
             x.printStackTrace();
-            return null;
         }
 
-        return this.finalDependencySpecs;
+        return this.result;
     }
 
     private ArtifactDependency fullyResolveDependency(DependencySpec dependencySpec, int declarationLevel){
@@ -90,14 +107,18 @@ public class RecursiveDependencyResolver extends DependencyResolver {
         if(dependency.Version == null){
             DependencySpec specWithVersion = resolveMissingVersion(dependencySpec, declarationLevel);
             if(specWithVersion == null){
-                System.err.println("Failed to resolve missing version for " + dependency.toString());
+                ResolverError error =
+                        new ResolverError.ParsingRelatedResolverError("Failed to resolve missing version", dependency.toString());
+                this.result.appendError(error);
                 return null;
             }
             String resolvedVersion = resolveAllReferencesInValue(specWithVersion.Dependency.Version, specWithVersion,
                     declarationLevel);
 
             if(resolvedVersion == null){
-                System.err.println("Failed to resolve missing version for " + dependency.toString());
+                ResolverError error =
+                        new ResolverError.ParsingRelatedResolverError("Failed to resolve references in version", dependency.toString());
+                this.result.appendError(error);
                 return null;
             }
 
@@ -120,12 +141,12 @@ public class RecursiveDependencyResolver extends DependencyResolver {
 
         for(DependencySpec spec: rawSpecsOnLevel){
             if(spec.IsDeclaredInImportPom)
-                continue;
+                continue; // Dependencies in imported POMs do not apply
 
             ArtifactDependency resolvedDependency = fullyResolveDependency(spec, level);
 
             if(resolvedDependency == null)
-                continue;
+                continue; // Error is already reported
 
             boolean sameArtifactAlreadyPresent = this.finalDependencySpecs.stream()
                     .anyMatch(d -> d.GroupId.equals(resolvedDependency.GroupId) &&
@@ -186,7 +207,10 @@ public class RecursiveDependencyResolver extends DependencyResolver {
                     if(parentIdentifier != null && !specifiedIn.IsDeclaredInImportPom){
                         return parentIdentifier.Version;
                     }
-                    System.err.println("Reference to parent version but no parent found.");
+                    ResolverError error =
+                            new ResolverError.ParsingRelatedResolverError("Reference to parent version but no parent found",
+                                    parentIdentifier == null ? null : parentIdentifier.toString());
+                    this.result.appendError(error);
                     return null;
             }
         }
@@ -229,7 +253,9 @@ public class RecursiveDependencyResolver extends DependencyResolver {
 
         }
 
-        System.err.println("Failed to resolve property " + propertyReference);
+        ResolverError error =
+                new ResolverError.ParsingRelatedResolverError("Failed to resolve property value", propertyReference);
+        this.result.appendError(error);
         return null;
     }
 
@@ -244,7 +270,8 @@ public class RecursiveDependencyResolver extends DependencyResolver {
                     //TODO: References in artifact identifiers inside dependencyManagement tags..We don't
                     //TODO: want to resolve all management specs, so we resolve this on demand
                     dep.ArtifactId = resolveAllReferencesInValue(dep.ArtifactId, incompleteDependency, startLevel);
-                    if(dep.ArtifactId.equals(incompleteDependency.Dependency.ArtifactId) && dep.Version != null){
+                    if(dep.ArtifactId != null && dep.ArtifactId.equals(incompleteDependency.Dependency.ArtifactId) &&
+                            dep.Version != null){
                         return managementSpec;
                     }
                 }
@@ -273,17 +300,18 @@ public class RecursiveDependencyResolver extends DependencyResolver {
                 Element currentDependencyElement = (Element)currentNode;
                 ArtifactDependency dependency = readDependency(currentDependencyElement);
 
-                int context = determineDependencyElementContext(currentDependencyElement);
+                DependencyElementContext context = determineDependencyElementContext(currentDependencyElement);
 
                 DependencySpec spec = new DependencySpec(dependency, docIdent, isImportDependency);
 
-                if(context == 0){ //Dependency management
+                if(context == DependencyElementContext.DEPENDENCY_MANAGEMENT){
                     this.dependencyManagementSpecsPerHierarchyLevel.get(level).add(spec);
                 }
-                else if(context == 2){ //"Normal" Dependencies that are specified in a profile..Overapproximation
+                else if(context == DependencyElementContext.PROFILE_PROJECT_DEPENDENCY){
+                    //TODO: Overapproximation here?
                     //this.dependencySpecsPerHierarchyLevel.get(level).add(spec);
                 }
-                else if(context == 3){
+                else if(context == DependencyElementContext.PROJECT_DEPENDENCY){
                     this.dependencySpecsPerHierarchyLevel.get(level).add(spec);
                 }
                 //Drop plugin dependencies
@@ -311,26 +339,25 @@ public class RecursiveDependencyResolver extends DependencyResolver {
     }
 
 
-    private int determineDependencyElementContext(Element dependencyElem){
+    private DependencyElementContext determineDependencyElementContext(Element dependencyElem){
         Node parentNode = dependencyElem.getParentNode();
 
         while(parentNode != null){
             if(parentNode instanceof Element){
                 String tagname = ((Element)parentNode).getTagName().toLowerCase();
-                if(tagname.equals("dependencymanagement")){
-                    return 0;
-                }
-                else if(tagname.equals("plugin")){
-                    return 1;
-                }
-                else if(tagname.equals("profile")){
-                    return 2;
+                switch (tagname) {
+                    case "dependencymanagement":
+                        return DependencyElementContext.DEPENDENCY_MANAGEMENT;
+                    case "plugin":
+                        return DependencyElementContext.PLUGIN_DEPENDENCY;
+                    case "profile":
+                        return DependencyElementContext.PROFILE_PROJECT_DEPENDENCY;
                 }
             }
             parentNode = parentNode.getParentNode();
         }
 
-        return 3;
+        return DependencyElementContext.PROJECT_DEPENDENCY;
     }
 
     private ArtifactDependency readDependency(Element dependencyElement){
@@ -361,7 +388,9 @@ public class RecursiveDependencyResolver extends DependencyResolver {
         }
 
         if(dependency.GroupId == null || dependency.ArtifactId == null){
-            System.err.println("Incomplete dependency specification found!");
+            ResolverError error = new ResolverError.ParsingRelatedResolverError("Incomplete dependency specification found",
+                    dependency.toString());
+            this.result.appendError(error);
             return null;
         }
 
@@ -373,7 +402,22 @@ public class RecursiveDependencyResolver extends DependencyResolver {
 
         while(hasParentDefinition(currentDoc)){
             ArtifactIdentifier parentIdent = getParentIdentifier(currentDoc);
-            Document parentDoc = parseXml(MavenCentralRepository.getInstance().openPomFileInputStream(parentIdent));
+
+            if(parentIdent == null){
+                // Error object already created
+                throw new RuntimeException("Critical resolver error: Parent POM reference invalid");
+            }
+
+            InputStream parentPomStream = MavenCentralRepository.getInstance().openPomFileInputStream(parentIdent);
+
+            if(parentPomStream == null){
+                ResolverError error = new ResolverError.ParsingRelatedResolverError("Parent POM not found on Maven Central",
+                        parentIdent.toString());
+                this.result.appendError(error);
+                throw new RuntimeException("Critical resolver error: Parent POM definition not found on Maven Central");
+            }
+
+            Document parentDoc = parseXml(parentPomStream);
 
             if(parentDoc != null){
                 parsedPomFileHierarchy.add(parentDoc);
@@ -382,8 +426,10 @@ public class RecursiveDependencyResolver extends DependencyResolver {
             }
             else
             {
-                System.err.println("Failed to parse parent pom.");
-                break;
+                ResolverError error = new ResolverError.ParsingRelatedResolverError("Failed to parse parent POM",
+                        parentIdent.toString());
+                this.result.appendError(error);
+                throw new RuntimeException("Critical resolver error: Parent POM definition has parsing errors");
             }
 
         }
@@ -426,7 +472,8 @@ public class RecursiveDependencyResolver extends DependencyResolver {
         }
 
         if(ident.GroupId == null || ident.ArtifactId == null || ident.Version == null){
-            System.err.println("Incomplete parent definition.");
+            ResolverError error = new ResolverError("Incomplete parent definition in POM file");
+            this.result.appendError(error);
             return null;
         }
 
@@ -443,6 +490,7 @@ public class RecursiveDependencyResolver extends DependencyResolver {
             while(newImportScopeDeps)
             {
                 newImportScopeDeps = false;
+
                 for(DependencySpec spec : (HashSet<DependencySpec>)this.dependencyManagementSpecsPerHierarchyLevel.get(level).clone()){
                     ArtifactDependency dep = spec.Dependency;
                     if(dep.Scope != null && dep.Scope.toLowerCase().equals("import")){
@@ -456,20 +504,28 @@ public class RecursiveDependencyResolver extends DependencyResolver {
 
                             InputStream dependencyInputStream = MavenCentralRepository.getInstance()
                                     .openPomFileInputStream(resolvedImportScopeDep);
+
+                            if(dependencyInputStream == null){
+                                throw new RuntimeException("Import Dependency POM definition not found on Maven Central: " +
+                                        resolvedImportScopeDep);
+                            }
+
                             Document dependencyDoc = parseXml(dependencyInputStream);
                             importScopeDocuments.get(level).add(dependencyDoc);
                             importScopeIdentifiers.get(level).add(resolvedImportScopeDep);
 
                             if(dependencyDoc == null){
-                                System.err.println("Failed to read import dependency pom: " + resolvedImportScopeDep);
-                                continue;
+                                throw new RuntimeException("Failed to read import dependency pom: " + resolvedImportScopeDep);
                             }
 
                             processRawDependenciesInDocument(dependencyDoc, level, resolvedImportScopeDep,
                                     true);
                         } catch(Exception x) {
                             System.err.println("Failed to resolve import-scope dependency: " + x.getMessage());
-                            x.printStackTrace();
+                            ResolverError error = new ResolverError.ParsingRelatedResolverError(
+                                    "Failed to resolve import scope dependency", dep.toString(), x);
+                            this.result.appendError(error);
+                            // Non-Critical errors
                         }
 
                     }
@@ -501,6 +557,10 @@ public class RecursiveDependencyResolver extends DependencyResolver {
             this.DeclaredIn = i;
             this.IsDeclaredInImportPom = isImport;
         }
+    }
+
+    private enum DependencyElementContext {
+        DEPENDENCY_MANAGEMENT, PLUGIN_DEPENDENCY, PROJECT_DEPENDENCY, PROFILE_PROJECT_DEPENDENCY
     }
 
 }

@@ -6,6 +6,7 @@ import org.tud.vulnanalysis.model.ArtifactIdentifier;
 import org.tud.vulnanalysis.pom.PomFileDownloadResponse;
 import org.tud.vulnanalysis.pom.PomFileUtils;
 
+import javax.naming.spi.Resolver;
 import java.io.File;
 import java.nio.file.Paths;
 import java.util.Objects;
@@ -58,7 +59,12 @@ public class RecursiveDependencyResolverTest {
     @DisplayName("Test Dependency Resolving for Recursive Parents")
     public void testResolveDependencies(){
         IDependencyResolver resolver = new RecursiveDependencyResolver(pomFile, artifactIdent);
-        Set<ArtifactDependency> dependencies = resolver.resolveDependencies();
+        ResolverResult result = resolver.resolveDependencies();
+
+        Assertions.assertFalse(result.hasErrors());
+        Assertions.assertTrue(result.hasResults());
+
+        Set<ArtifactDependency> dependencies = result.getResults();
 
         Assertions.assertNotNull(dependencies);
         Assertions.assertFalse(dependencies.isEmpty());
@@ -75,7 +81,12 @@ public class RecursiveDependencyResolverTest {
         Assertions.assertTrue(quarkusFile.exists());
 
         IDependencyResolver resolver = new RecursiveDependencyResolver(quarkusFile, quarkusIdent);
-        Set<ArtifactDependency> dependencies = resolver.resolveDependencies();
+        ResolverResult result = resolver.resolveDependencies();
+
+        Assertions.assertFalse(result.hasErrors());
+        Assertions.assertTrue(result.hasResults());
+
+        Set<ArtifactDependency> dependencies = result.getResults();
 
         Assertions.assertNotNull(dependencies);
         Assertions.assertFalse(dependencies.isEmpty());
@@ -99,7 +110,12 @@ public class RecursiveDependencyResolverTest {
 
         IDependencyResolver res = new RecursiveDependencyResolver(interpolationFile, artifactWithIdentifierInterpolation);
 
-        Set<ArtifactDependency> deps = res.resolveDependencies();
+        ResolverResult result = res.resolveDependencies();
+
+        Assertions.assertFalse(result.hasErrors());
+        Assertions.assertTrue(result.hasResults());
+
+        Set<ArtifactDependency> deps = result.getResults();
 
         Assertions.assertNotNull(deps);
     }
@@ -113,8 +129,12 @@ public class RecursiveDependencyResolverTest {
         Assertions.assertTrue(missingVersionsFile.exists());
 
         IDependencyResolver res = new RecursiveDependencyResolver(missingVersionsFile, artifactWithMissingVersions);
+        ResolverResult result = res.resolveDependencies();
 
-        Set<ArtifactDependency> deps = res.resolveDependencies();
+        Assertions.assertFalse(result.hasErrors());
+        Assertions.assertTrue(result.hasResults());
+
+        Set<ArtifactDependency> deps = result.getResults();
 
         Assertions.assertNotNull(deps);
         Assertions.assertFalse(deps.isEmpty());
@@ -129,9 +149,9 @@ public class RecursiveDependencyResolverTest {
         IDependencyResolver recursiveResolver = new RecursiveDependencyResolver(pomFile, artifactIdent);
 
         long startTime = System.currentTimeMillis();
-        Set<ArtifactDependency> mvnDeps = mvnResolver.resolveDependencies();
+        ResolverResult mvnResult = mvnResolver.resolveDependencies();
         long mvnTime = System.currentTimeMillis();
-        Set<ArtifactDependency> recDeps = recursiveResolver.resolveDependencies();
+        ResolverResult recResult = recursiveResolver.resolveDependencies();
         long endTime = System.currentTimeMillis();
 
         long durationMvn = mvnTime - startTime;
@@ -139,6 +159,12 @@ public class RecursiveDependencyResolverTest {
 
         System.out.println("Time Maven: " + durationMvn);
         System.out.println("Time Recursive: " + durationRec);
+
+        Assertions.assertFalse(mvnResult.hasErrors() || recResult.hasErrors());
+        Assertions.assertTrue(mvnResult.hasResults() && recResult.hasResults());
+
+        Set<ArtifactDependency> mvnDeps = mvnResult.getResults();
+        Set<ArtifactDependency> recDeps = recResult.getResults();
 
         Assertions.assertEquals(17, mvnDeps.size());
         Assertions.assertEquals(17, recDeps.size());

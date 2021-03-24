@@ -8,6 +8,7 @@ import org.tud.vulnanalysis.model.MavenCentralRepository;
 import org.tud.vulnanalysis.pom.PomFileDownloadResponse;
 import org.tud.vulnanalysis.pom.dependencies.DependencyResolverProvider;
 import org.tud.vulnanalysis.pom.dependencies.RecursiveDependencyResolver;
+import org.tud.vulnanalysis.pom.dependencies.ResolverResult;
 
 import java.io.File;
 import java.io.FileNotFoundException;
@@ -52,10 +53,12 @@ public class Miner {
                 continue;
             }
 
-            Set<ArtifactDependency> deps = DependencyResolverProvider
+            ResolverResult result = DependencyResolverProvider
                     .getInstance()
                     .buildResolver(output, ident)
                     .resolveDependencies();
+
+            Set<ArtifactDependency> deps = result.getResults();
 
             if(deps == null){
                 deps = new HashSet<ArtifactDependency>();

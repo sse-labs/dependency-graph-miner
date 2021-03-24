@@ -12,7 +12,6 @@ import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Set;
 
 public class MvnPluginDependencyResolver extends DependencyResolver {
 
@@ -22,7 +21,9 @@ public class MvnPluginDependencyResolver extends DependencyResolver {
     }
 
     @Override
-    public Set<ArtifactDependency> resolveDependencies() {
+    public ResolverResult resolveDependencies() {
+        ResolverResult result = new ResolverResult(this.identifier);
+
         HashSet<ArtifactDependency> dependencies = new HashSet<>();
 
         try {
@@ -54,18 +55,21 @@ public class MvnPluginDependencyResolver extends DependencyResolver {
             int exitCode = process.waitFor();
 
             if(exitCode != 0){
-                System.err.println("Got exit code: " + exitCode);
+                ResolverError error = new ResolverError("Got non-success exit code while invoking maven: " + exitCode);
+                result.appendError(error);
                 dumpErrorLogs(output, Paths.get(pomFile.getParent(), "resolver-errors.log").toFile());
-                return null;
             } else {
-                return dependencies;
+                result.setResults(dependencies);
             }
 
         }
         catch (Exception x){
+            ResolverError error = new ResolverError("Unexpected exception during Maven invocation", x);
+            result.appendError(error);
             x.printStackTrace();
-            return null;
         }
+
+        return result;
     }
 
     private void dumpErrorLogs(List<String> output, File logFile) throws IOException {
