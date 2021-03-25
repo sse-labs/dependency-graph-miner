@@ -6,6 +6,9 @@ import org.tud.vulnanalysis.lucene.BufferedGAVIterator;
 import org.tud.vulnanalysis.model.ArtifactIdentifier;
 import org.tud.vulnanalysis.pom.PomFileBatchResolver;
 import org.tud.vulnanalysis.pom.dependencies.*;
+import org.tud.vulnanalysis.storage.Neo4jSessionFactory;
+import org.tud.vulnanalysis.utils.ConfigReader;
+import org.tud.vulnanalysis.utils.MinerConfiguration;
 
 import java.io.File;
 import java.io.IOException;
@@ -24,32 +27,50 @@ public class Miner {
     private BufferedGAVIterator artifactIterator;
     private boolean isInitialized;
 
-    public Miner(){
+    private MinerConfiguration config;
+
+    public Miner(MinerConfiguration config){
         this.isInitialized = false;
         ResolverProvider.registerResolverType(RecursiveDependencyResolver.class);
+        this.config = config;
     }
 
-    private void initializeIndex(String pathToLuceneIndex){
-        File luceneIndexDir = new File(pathToLuceneIndex);
+    public boolean initialize(){
+        File luceneIndexDir = new File(config.MavenCentralLuceneIndexPath);
 
         if(!luceneIndexDir.exists() || !luceneIndexDir.isDirectory()){
             log.error("Invalid lucene index directory: " + luceneIndexDir.getAbsolutePath());
-            return;
+            return false;
         }
 
         try{
-            log.info("Initializing miner, this might take a few minutes...");
+            log.info("Initializing Neo4j storage backend (host: '" + config.Neo4jHost + "' user:'" +
+                    config.Neo4jUsername + "')");
+            Neo4jSessionFactory.initializeInstance(config);
+            log.info("Successfully initialized storage backend");
+        }
+        catch(Exception x){
+            log.error("Failed to initialized storage backend.", x);
+            return false;
+        }
+
+        try{
+            log.info("Initializing lucene index, this might take a few minutes...");
+
             artifactIterator = new BufferedGAVIterator(luceneIndexDir.getAbsolutePath());
             artifactIterator.initializeIndex();
 
-            this.threadPool = Executors.newFixedThreadPool(4);
+            this.threadPool = Executors.newFixedThreadPool(config.NumberOfWorkerThreads);
 
-            this.isInitialized = true;
-            log.info("Done initializing miner.");
+            log.info("Done initializing index.");
         }
         catch(IOException iox){
             log.error("Failed to initialize lucene index.", iox);
+            return false;
         }
+
+        this.isInitialized = true;
+        return true;
     }
 
     public void processArtifacts(){
@@ -82,7 +103,7 @@ public class Miner {
         try{
             log.info("Waiting for threadpool to finish execution...");
             threadPool.shutdown();
-            threadPool.awaitTermination(1, TimeUnit.HOURS);
+            threadPool.awaitTermination(10, TimeUnit.DAYS);
         }
         catch(InterruptedException ix){
             log.error("Error while waiting for threadpool", ix);
@@ -92,8 +113,18 @@ public class Miner {
 
     public static void main(String[] args) {
 
-        Miner miner = new Miner();
-        miner.initializeIndex("C:\\Users\\Fujitsu\\Documents\\Research\\Vulnerabilities\\repos\\maven-miner\\index\\central-lucene-index");
+        MinerConfiguration theConfig = ConfigReader.readConfiguration("miner.config");
+
+        if(theConfig == null){
+            LogManager.getRootLogger().error("Invalid configuration file, aborting.");
+            return;
+        }
+
+        Miner miner = new Miner(theConfig);
+
+        if(!miner.initialize()){
+            return;
+        }
 
         long startTime = System.currentTimeMillis();
         miner.processArtifacts();
