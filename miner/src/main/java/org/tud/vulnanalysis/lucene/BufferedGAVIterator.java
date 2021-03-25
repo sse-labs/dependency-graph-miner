@@ -1,5 +1,7 @@
 package org.tud.vulnanalysis.lucene;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.tud.vulnanalysis.model.ArtifactIdentifier;
 
 import java.io.IOException;
@@ -16,6 +18,8 @@ public class BufferedGAVIterator implements Iterator<ArtifactIdentifier> {
 
     private boolean initialized;
     private String splitPattern;
+
+    private Logger log = LogManager.getLogger(BufferedGAVIterator.class);
 
     public BufferedGAVIterator(String pathToIndex) throws IOException {
         indexReadIterator = new IndexIterator(pathToIndex);
@@ -39,8 +43,9 @@ public class BufferedGAVIterator implements Iterator<ArtifactIdentifier> {
 
             artifacts.add(artifact);
 
-            if(current % 100000 == 0){
-                System.out.println("Progress: " + current + " / " + indexReadIterator.getMaxDocumentCount());
+            if(current % 500000 == 0){
+                double percentage = Math.round(((double)current / indexReadIterator.getMaxDocumentCount()) * 10000d) / 100d;
+                log.trace("Building index: " + percentage + " % complete");
             }
 
             current++;

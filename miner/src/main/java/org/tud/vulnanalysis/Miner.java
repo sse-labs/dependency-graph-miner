@@ -1,8 +1,9 @@
 package org.tud.vulnanalysis;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.tud.vulnanalysis.lucene.BufferedGAVIterator;
 import org.tud.vulnanalysis.model.ArtifactIdentifier;
-import org.tud.vulnanalysis.model.MavenCentralRepository;
 import org.tud.vulnanalysis.pom.PomFileBatchResolver;
 import org.tud.vulnanalysis.pom.dependencies.*;
 
@@ -16,7 +17,8 @@ import java.util.concurrent.TimeUnit;
 public class Miner {
 
     private static DependencyResolverProvider ResolverProvider = DependencyResolverProvider.getInstance();
-    private static MavenCentralRepository MavenRepo = MavenCentralRepository.getInstance();
+
+    private Logger log = LogManager.getLogger(Miner.class);
 
     private ExecutorService threadPool;
     private BufferedGAVIterator artifactIterator;
@@ -31,22 +33,22 @@ public class Miner {
         File luceneIndexDir = new File(pathToLuceneIndex);
 
         if(!luceneIndexDir.exists() || !luceneIndexDir.isDirectory()){
-            System.err.println("Invalid lucene index directory: " + luceneIndexDir.getAbsolutePath());
+            log.error("Invalid lucene index directory: " + luceneIndexDir.getAbsolutePath());
             return;
         }
 
         try{
-            System.out.println("Initializing miner, this might take a few minutes...");
+            log.info("Initializing miner, this might take a few minutes...");
             artifactIterator = new BufferedGAVIterator(luceneIndexDir.getAbsolutePath());
             artifactIterator.initializeIndex();
 
             this.threadPool = Executors.newFixedThreadPool(4);
 
             this.isInitialized = true;
-            System.out.println("Done initializing miner.");
+            log.info("Done initializing miner.");
         }
         catch(IOException iox){
-            System.err.println("Failed to initialize lucene index: " + iox.getMessage());
+            log.error("Failed to initialize lucene index.", iox);
         }
     }
 
@@ -63,7 +65,7 @@ public class Miner {
             batch.add(currentIdentifier);
 
             if(batch.size() >= 50){
-                System.out.println("Scheduling a new batch @ " + artifactCnt + " artifacts..");
+                log.trace("Scheduling a new batch @ " + artifactCnt + " artifacts..");
                 Thread worker = new PomFileBatchResolver(batch);
                 this.threadPool.execute(worker);
                 batch = new ArrayList<>();
@@ -78,17 +80,17 @@ public class Miner {
 
 
         try{
-            System.out.println("Waiting for threadpool to finish execution...");
+            log.info("Waiting for threadpool to finish execution...");
             threadPool.shutdown();
             threadPool.awaitTermination(1, TimeUnit.HOURS);
         }
         catch(InterruptedException ix){
-            System.err.println("Error while waiting for threadpool: " + ix.getMessage());
+            log.error("Error while waiting for threadpool", ix);
         }
-        System.out.println("Finished processing artifacts");
+        log.info("Finished processing artifacts");
     }
 
-    public static void main(String[] args) throws IOException, InterruptedException{
+    public static void main(String[] args) {
 
         Miner miner = new Miner();
         miner.initializeIndex("C:\\Users\\Fujitsu\\Documents\\Research\\Vulnerabilities\\repos\\maven-miner\\index\\central-lucene-index");
@@ -97,6 +99,6 @@ public class Miner {
         miner.processArtifacts();
         long duration = System.currentTimeMillis() - startTime;
 
-        System.out.println("Processing took " + duration + " ms");
+        LogManager.getRootLogger().info("Processing took " + duration + " ms");
     }
 }

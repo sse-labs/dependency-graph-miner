@@ -1,5 +1,8 @@
 package org.tud.vulnanalysis.pom;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+
 import org.tud.vulnanalysis.model.ArtifactIdentifier;
 import org.tud.vulnanalysis.model.MavenArtifact;
 import org.tud.vulnanalysis.model.MavenCentralRepository;
@@ -17,6 +20,7 @@ public class PomFileBatchResolver extends Thread {
     private static MavenCentralRepository MavenRepo = MavenCentralRepository.getInstance();
 
     private List<ArtifactIdentifier> batch;
+    private Logger log = LogManager.getLogger(PomFileBatchResolver.class);
 
 
     public PomFileBatchResolver(List<ArtifactIdentifier> batch){
@@ -37,17 +41,17 @@ public class PomFileBatchResolver extends Thread {
         }
 
         this.batch = null;
-        System.out.println("Finished processing batch.");
+        log.info("Finished processing batch.");
     }
 
     private void processIdentifier(ArtifactIdentifier identifier){
-        //System.out.println("PROCESSING: " + identifier);
+        log.trace("Processing identifier: " + identifier);
 
         try{
             URLConnection connection = MavenRepo.openPomFileConnection(identifier);
 
             if(connection == null){
-                System.err.println("Download failed.");
+                log.error("Download failed.");
                 return;
             }
 
@@ -61,7 +65,7 @@ public class PomFileBatchResolver extends Thread {
             if(dependcyResolverResult.hasErrors() && dependcyResolverResult.hasResults()){
 
                 if(ResolverProvider.backupResolverEnabled()){
-                    System.err.println("Got " + dependcyResolverResult.getErrors().size() +
+                    log.warn("Got " + dependcyResolverResult.getErrors().size() +
                             " errors while resolving, falling back to secondary resolver ...");
 
                     dependcyResolverResult = ResolverProvider
@@ -69,14 +73,14 @@ public class PomFileBatchResolver extends Thread {
                             .resolveDependencies();
                 }
                 else {
-                    System.err.println("Got " + dependcyResolverResult.getErrors().size() +
+                    log.warn("Got " + dependcyResolverResult.getErrors().size() +
                             " errors while resolving, no backup resolver specified.");
                 }
 
             }
             // In this case it is unlikely that the backup resolver would make any difference
             else if(dependcyResolverResult.hasErrors()){
-                System.err.println("Got " + dependcyResolverResult.getErrors().size() +
+                log.warn("Got " + dependcyResolverResult.getErrors().size() +
                         " critical errors while resolving, not falling back.");
             }
 
@@ -88,24 +92,22 @@ public class PomFileBatchResolver extends Thread {
                 if(dependcyResolverResult.hasParentIdentifier()){
                     artifact.setParent(dependcyResolverResult.getParentIdentifier());
                 }
-                //System.out.println("GOT ARTIFACT: " + artifact);
+                log.trace("Got artifact: " + artifact);
                 //TODO: Handle artifact
             }
             else
             {
-                System.err.println("No results for this artifact.");
+                log.warn("No results for this artifact.");
             }
         }
         catch(FileNotFoundException fnfx){
-            System.err.println("Failed to locate POM file definition on Maven Central: " + identifier.toString());
+            log.warn("Failed to locate POM file definition on Maven Central: " + identifier.toString());
         }
         catch(IOException iox){
-            System.err.println("IO Failure while processing artifact identifier " + identifier.toString());
-            System.err.println(iox.getClass() + " : " + iox.getMessage());
+            log.warn("IO Failure while processing artifact identifier " + identifier.toString(), iox);
         }
         catch(Exception x){
-            System.err.println("Unexpected error while processing artifact identifier " + identifier.toString());
-            x.printStackTrace();
+            log.error("Unexpected error while processing artifact identifier " + identifier.toString(), x);
         }
 
     }

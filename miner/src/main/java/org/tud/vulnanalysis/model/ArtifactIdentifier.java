@@ -1,5 +1,8 @@
 package org.tud.vulnanalysis.model;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+
 import java.net.URI;
 import java.util.Objects;
 
@@ -10,6 +13,8 @@ public class ArtifactIdentifier {
     public String ArtifactId;
 
     public String Version;
+
+    private Logger log = LogManager.getLogger(ArtifactIdentifier.class);
 
     public ArtifactIdentifier(String g, String a, String v){
         this.GroupId = g;
@@ -25,7 +30,7 @@ public class ArtifactIdentifier {
         try {
             return MavenCentralRepository.buildPomFileURI(this);
         } catch(Exception x){
-            System.err.println("Failed to build artifact pom url: " + x.getMessage());
+            log.error("Failed to build artifact pom url: " + x.getMessage());
             return null;
         }
     }

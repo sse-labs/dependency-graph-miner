@@ -1,5 +1,7 @@
 package org.tud.vulnanalysis.pom.dependencies;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.tud.vulnanalysis.model.ArtifactDependency;
 import org.tud.vulnanalysis.model.ArtifactIdentifier;
 import org.tud.vulnanalysis.model.MavenCentralRepository;
@@ -40,6 +42,8 @@ public class RecursiveDependencyResolver extends DependencyResolver {
     private ResolverResult result;
 
     private boolean includeDependenciesInProfiles;
+
+    private Logger log = LogManager.getLogger(RecursiveDependencyResolver.class);
 
     public RecursiveDependencyResolver(InputStream pomFileStream, ArtifactIdentifier identifier){
         super(pomFileStream, identifier);
@@ -100,7 +104,6 @@ public class RecursiveDependencyResolver extends DependencyResolver {
         } catch (Exception x){
             ResolverError error = new ResolverError("Uncaught exception while resolving dependencies", x);
             result.appendError(error);
-            x.printStackTrace();
         }
 
         return this.result;
@@ -456,7 +459,7 @@ public class RecursiveDependencyResolver extends DependencyResolver {
         NodeList parentElems = doc.getDocumentElement().getElementsByTagName("parent");
 
         if(parentElems.getLength() > 1) {
-            System.err.println("WARN: More than one parent element detected");
+            log.warn("More than one parent element detected for artifact: " + this.identifier.toString());
         }
 
         Element parentElem = (Element) parentElems.item(0);
