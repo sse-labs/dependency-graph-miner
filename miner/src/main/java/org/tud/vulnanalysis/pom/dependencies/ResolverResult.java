@@ -4,7 +4,6 @@ import org.tud.vulnanalysis.model.ArtifactDependency;
 import org.tud.vulnanalysis.model.ArtifactIdentifier;
 
 import java.util.ArrayList;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
@@ -16,10 +15,25 @@ public class ResolverResult {
 
     private List<ResolverError> resolverErrors;
 
+    private ArtifactIdentifier parentArtifactIdentifier;
+
     public ResolverResult(ArtifactIdentifier ident){
         this.rootArtifactIdentifier = ident;
         this.resultSet = null;
         this.resolverErrors = new ArrayList<>();
+        this.parentArtifactIdentifier = null;
+    }
+
+    public void setParentIdentifier(ArtifactIdentifier parent){
+        this.parentArtifactIdentifier = parent;
+    }
+
+    public ArtifactIdentifier getParentIdentifier(){
+        return this.parentArtifactIdentifier;
+    }
+
+    public boolean hasParentIdentifier(){
+        return this.parentArtifactIdentifier != null;
     }
 
     public ArtifactIdentifier getRootArtifactIdentifier(){

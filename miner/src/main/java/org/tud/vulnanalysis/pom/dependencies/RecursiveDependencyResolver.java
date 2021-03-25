@@ -79,9 +79,16 @@ public class RecursiveDependencyResolver extends DependencyResolver {
                 parentIdentifierHierarchy.add(identifier);
                 buildPomFileHierarchy(pomDoc);
 
+                // Set direct parent in result
+                if(parentIdentifierHierarchy.size() > 1){
+                    result.setParentIdentifier(parentIdentifierHierarchy.get(1));
+                }
+
                 // Detect all dependency specifications in the entire hierarchy and store them in intermediate dictionaries
                 findRawDependenciesInHierarchy(0);
 
+                // Iterate all dependency management specs and detect dependencies with scope "import". Resolve them
+                // and add their content to separate intermediate dictionaries.
                 expandImportScopeDependencies();
 
                 // Use intermediate dictionaries to resolve missing versions / resolve property definitions

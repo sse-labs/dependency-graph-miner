@@ -11,6 +11,7 @@ import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 
+//TODO: Handle parent detection?
 public class MvnPluginDependencyResolver extends DependencyResolver {
 
     private File pomFile;

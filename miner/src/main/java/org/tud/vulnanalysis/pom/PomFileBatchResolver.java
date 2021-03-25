@@ -6,71 +6,38 @@ import org.tud.vulnanalysis.model.MavenCentralRepository;
 import org.tud.vulnanalysis.pom.dependencies.DependencyResolverProvider;
 import org.tud.vulnanalysis.pom.dependencies.ResolverResult;
 
+import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.net.URLConnection;
 import java.util.List;
-import java.util.concurrent.locks.Lock;
-import java.util.concurrent.locks.ReentrantLock;
 
 public class PomFileBatchResolver extends Thread {
 
     private static DependencyResolverProvider ResolverProvider = DependencyResolverProvider.getInstance();
     private static MavenCentralRepository MavenRepo = MavenCentralRepository.getInstance();
 
-    private final Object batchMonitor = new Object();
     private List<ArtifactIdentifier> batch;
 
-    private boolean stopRequested;
 
-    public PomFileBatchResolver(){
-        this.stopRequested = false;
-        this.batch = null;
+    public PomFileBatchResolver(List<ArtifactIdentifier> batch){
+        this.batch = batch;
     }
 
 
     @Override
     public void run(){
-        try{
-            while(!this.stopRequested){
-                synchronized (batchMonitor){
-                    while(this.batch == null){
-                        // Wait to be assigned a batch
-                        batchMonitor.wait();
-
-                        // Prefer stopping over checking for new batch
-                        if(this.stopRequested) break;
-                    }
-                }
-
-                // Immediately leave loop
-                if(this.stopRequested) break;
-
-                this.processBatch();
-            }
-        }
-        catch(InterruptedException ix){
-            ix.printStackTrace();
-        }
+        this.processBatch();
     }
 
     private void processBatch(){
-        synchronized (batchMonitor){
-            System.out.println("Start working on batch");
 
-            try{
-                while(!this.batch.isEmpty()){
-                    ArtifactIdentifier current = this.batch.remove(0);
-                    processIdentifier(current);
-                }
-
-                this.batch = null;
-            }
-            finally{
-                batchMonitor.notifyAll();
-                System.out.println("Finished working on batch!");
-            }
+        while(!this.batch.isEmpty()){
+            ArtifactIdentifier current = this.batch.remove(0);
+            processIdentifier(current);
         }
 
+        this.batch = null;
+        System.out.println("Finished processing batch.");
     }
 
     private void processIdentifier(ArtifactIdentifier identifier){
@@ -109,13 +76,18 @@ public class PomFileBatchResolver extends Thread {
             }
             // In this case it is unlikely that the backup resolver would make any difference
             else if(dependcyResolverResult.hasErrors()){
-                System.err.println("Got " + dependcyResolverResult.getErrors().size() + " critical errors while resolving, not falling back.");
+                System.err.println("Got " + dependcyResolverResult.getErrors().size() +
+                        " critical errors while resolving, not falling back.");
             }
 
             if(dependcyResolverResult.hasResults()){
                 MavenArtifact artifact =
                         new MavenArtifact(identifier, lastModified, dependcyResolverResult.getResults());
+                artifact.setErrorsWhileResolving(dependcyResolverResult.getErrors());
 
+                if(dependcyResolverResult.hasParentIdentifier()){
+                    artifact.setParent(dependcyResolverResult.getParentIdentifier());
+                }
                 //System.out.println("GOT ARTIFACT: " + artifact);
                 //TODO: Handle artifact
             }
@@ -124,30 +96,18 @@ public class PomFileBatchResolver extends Thread {
                 System.err.println("No results for this artifact.");
             }
         }
+        catch(FileNotFoundException fnfx){
+            System.err.println("Failed to locate POM file definition on Maven Central: " + identifier.toString());
+        }
         catch(IOException iox){
             System.err.println("IO Failure while processing artifact identifier " + identifier.toString());
             System.err.println(iox.getClass() + " : " + iox.getMessage());
         }
-
-    }
-
-    public void assignBatch(List<ArtifactIdentifier> newBatch) throws InterruptedException{
-        synchronized (batchMonitor){
-            while(this.batch != null){
-                batchMonitor.wait();
-            }
-            this.batch = newBatch;
-            batchMonitor.notifyAll();
+        catch(Exception x){
+            System.err.println("Unexpected error while processing artifact identifier " + identifier.toString());
+            x.printStackTrace();
         }
+
     }
-
-    public void requestStop(){
-        this.stopRequested = true;
-
-        synchronized (batchMonitor){
-            batchMonitor.notifyAll();
-        }
-    }
-
 
 }
