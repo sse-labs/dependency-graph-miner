@@ -10,9 +10,7 @@ import org.w3c.dom.NodeList;
 
 import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
-import java.io.File;
 import java.io.InputStream;
-import java.nio.file.Files;
 import java.util.*;
 
 /**
@@ -41,8 +39,10 @@ public class RecursiveDependencyResolver extends DependencyResolver {
 
     private ResolverResult result;
 
-    public RecursiveDependencyResolver(File pomFile, ArtifactIdentifier identifier){
-        super(pomFile, identifier);
+    private boolean includeDependenciesInProfiles;
+
+    public RecursiveDependencyResolver(InputStream pomFileStream, ArtifactIdentifier identifier){
+        super(pomFileStream, identifier);
         // BuilderFactory for XML parsing
         builderFactory = DocumentBuilderFactory.newInstance();
 
@@ -59,6 +59,12 @@ public class RecursiveDependencyResolver extends DependencyResolver {
 
         // Final (flat) list of dependencies with resolved versions
         finalDependencySpecs = new HashSet<>();
+
+        includeDependenciesInProfiles = false;
+    }
+
+    public void setIncludeDependenciesInProfiles(boolean value){
+        this.includeDependenciesInProfiles = value;
     }
 
     @Override
@@ -66,7 +72,7 @@ public class RecursiveDependencyResolver extends DependencyResolver {
         this.result = new ResolverResult(this.identifier);
 
         try{
-            Document pomDoc = parseXml(Files.newInputStream(this.pomFile.toPath()));
+            Document pomDoc = parseXml(this.pomFileInputStream);
             if(pomDoc != null){
                 // Construct the Parent Hierarchy for this document
                 parsedPomFileHierarchy.add(pomDoc);
@@ -266,9 +272,9 @@ public class RecursiveDependencyResolver extends DependencyResolver {
 
                 ArtifactDependency dep = managementSpec.Dependency;
                 if(dep.GroupId.equals(incompleteDependency.Dependency.GroupId)){
-                    //TODO: This might come back to haunt me..but it seems people actually use property
-                    //TODO: References in artifact identifiers inside dependencyManagement tags..We don't
-                    //TODO: want to resolve all management specs, so we resolve this on demand
+                    // It seems that some people actually user property refs in artifact identifiers, which are inside a
+                    // <dependencyManagement> tag. We resolve those here on-demand, we don't want to resolve the entire
+                    // management specifications, that would certainly produce a few resolver errors.
                     dep.ArtifactId = resolveAllReferencesInValue(dep.ArtifactId, incompleteDependency, startLevel);
                     if(dep.ArtifactId != null && dep.ArtifactId.equals(incompleteDependency.Dependency.ArtifactId) &&
                             dep.Version != null){
@@ -307,9 +313,9 @@ public class RecursiveDependencyResolver extends DependencyResolver {
                 if(context == DependencyElementContext.DEPENDENCY_MANAGEMENT){
                     this.dependencyManagementSpecsPerHierarchyLevel.get(level).add(spec);
                 }
-                else if(context == DependencyElementContext.PROFILE_PROJECT_DEPENDENCY){
-                    //TODO: Overapproximation here?
-                    //this.dependencySpecsPerHierarchyLevel.get(level).add(spec);
+                else if(context == DependencyElementContext.PROFILE_PROJECT_DEPENDENCY && this.includeDependenciesInProfiles){
+
+                    this.dependencySpecsPerHierarchyLevel.get(level).add(spec);
                 }
                 else if(context == DependencyElementContext.PROJECT_DEPENDENCY){
                     this.dependencySpecsPerHierarchyLevel.get(level).add(spec);
@@ -491,7 +497,11 @@ public class RecursiveDependencyResolver extends DependencyResolver {
             {
                 newImportScopeDeps = false;
 
-                for(DependencySpec spec : (HashSet<DependencySpec>)this.dependencyManagementSpecsPerHierarchyLevel.get(level).clone()){
+                // Clone Hashset to avoid concurrent modification exception
+                HashSet<DependencySpec> specsOnLevel =
+                        new HashSet<>(this.dependencyManagementSpecsPerHierarchyLevel.get(level));
+
+                for(DependencySpec spec : specsOnLevel){
                     ArtifactDependency dep = spec.Dependency;
                     if(dep.Scope != null && dep.Scope.toLowerCase().equals("import")){
                         try{

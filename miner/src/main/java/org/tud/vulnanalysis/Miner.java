@@ -1,20 +1,13 @@
 package org.tud.vulnanalysis;
 
 import org.tud.vulnanalysis.lucene.BufferedGAVIterator;
-import org.tud.vulnanalysis.model.ArtifactDependency;
 import org.tud.vulnanalysis.model.ArtifactIdentifier;
 import org.tud.vulnanalysis.model.MavenArtifact;
 import org.tud.vulnanalysis.model.MavenCentralRepository;
-import org.tud.vulnanalysis.pom.PomFileDownloadResponse;
 import org.tud.vulnanalysis.pom.dependencies.*;
 
-import java.io.File;
-import java.io.FileNotFoundException;
 import java.io.IOException;
-import java.nio.file.Path;
-import java.nio.file.Paths;
-import java.util.HashSet;
-import java.util.Set;
+import java.net.URLConnection;
 
 public class Miner {
 
@@ -40,25 +33,16 @@ public class Miner {
             ArtifactIdentifier ident = iterator.next();
 
             System.out.println(current + " - Downloading pom file for " + ident.getCoordinates());
-            Path tempDir = Paths.get("C:\\Users\\Fujitsu\\Documents\\Temp\\my-maven-miner\\workdir", String.valueOf(current));
 
-            tempDir.toFile().mkdirs();
+            URLConnection pomConnection = repo.openPomFileConnection(ident);
 
-            File output = Paths.get(tempDir.toString(), "pom.xml").toFile();
-
-            PomFileDownloadResponse response = repo.downloadPomFile(ident, output);
-            if(!response.getSuccess()){
-                if (!(response.getException() instanceof FileNotFoundException)){
-                    System.err.println("Error while downloading!");
-                } else {
-                    System.err.println("Download failed with 404.");
-                }
-                current++;
+            if(pomConnection == null){
+                System.err.println("Failed to download POM file.");
                 continue;
             }
 
             ResolverResult result = ResolverProvider
-                    .buildResolver(output, ident)
+                    .buildResolver(pomConnection.getInputStream(), ident)
                     .resolveDependencies();
 
             if(result.hasErrors()){
@@ -69,17 +53,15 @@ public class Miner {
 
             if(result.hasErrors() && result.hasResults()){
                 System.err.println("Got " + result.getErrors().size() + " errors while resolving, falling back to secondary resolver ...");
-                result = ResolverProvider.buildBackupResolver(output, ident).resolveDependencies();
+                result = ResolverProvider.buildBackupResolver(repo.openPomFileInputStream(ident), ident).resolveDependencies();
             }
             else if(result.hasErrors()){
                 System.err.println("Got " + result.getErrors().size() + " critical errors while resolving, not falling back.");
             }
 
             if(result.hasResults()){
-                MavenArtifact artifact = new MavenArtifact(ident, response.getLastModified(), result.getResults());
+                MavenArtifact artifact = new MavenArtifact(ident, pomConnection.getLastModified(), result.getResults());
                 System.out.println(artifact);
-                output.delete();
-                tempDir.toFile().delete();
             }
             else
             {

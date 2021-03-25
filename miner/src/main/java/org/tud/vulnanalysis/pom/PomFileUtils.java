@@ -32,6 +32,35 @@ public class PomFileUtils {
 
     }
 
+    public static boolean writeToPomFile(InputStream stream, File outputFile){
+        try{
+            ReadableByteChannel inputChannel = Channels.newChannel(stream);
+            FileOutputStream outputStream = new FileOutputStream(outputFile);
+            outputStream
+                    .getChannel()
+                    .transferFrom(inputChannel, 0, Long.MAX_VALUE);
+
+            outputStream.close();
+            inputChannel.close();
+
+            return true;
+        }
+        catch(Exception x){
+            return false;
+        }
+    }
+
+    public static URLConnection openPomFileConnection(ArtifactIdentifier ident){
+        try{
+            URLConnection conn = ident.getMavenCentralPomUri().toURL().openConnection();
+            conn.connect();
+            return conn;
+        }
+        catch(Exception x){
+            return null;
+        }
+    }
+
     public static InputStream openPomFileInputStream(ArtifactIdentifier ident){
         try{
             return ident.getMavenCentralPomUri().toURL().openStream();

@@ -2,7 +2,7 @@ package org.tud.vulnanalysis.pom.dependencies;
 
 import org.tud.vulnanalysis.model.ArtifactIdentifier;
 
-import java.io.File;
+import java.io.InputStream;
 import java.lang.reflect.Constructor;
 
 public class DependencyResolverProvider {
@@ -17,23 +17,23 @@ public class DependencyResolverProvider {
         this.backupResolverType = null;
     }
 
-    public DependencyResolver buildResolver(File pomFile, ArtifactIdentifier identifier){
+    public DependencyResolver buildResolver(InputStream stream, ArtifactIdentifier identifier){
         try {
-            Constructor<? extends DependencyResolver> c = resolverType.getConstructor(File.class, ArtifactIdentifier.class);
-            return c.newInstance(pomFile, identifier);
+            Constructor<? extends DependencyResolver> c = resolverType.getConstructor(InputStream.class, ArtifactIdentifier.class);
+            return c.newInstance(stream, identifier);
         } catch (Exception x){
             return null;
         }
     }
 
-    public DependencyResolver buildBackupResolver(File pomFile, ArtifactIdentifier identifier){
+    public DependencyResolver buildBackupResolver(InputStream stream, ArtifactIdentifier identifier){
         if(this.backupResolverType == null)
             return null;
 
         try {
             Constructor<? extends DependencyResolver> c =
-                    backupResolverType.getConstructor(File.class, ArtifactIdentifier.class);
-            return c.newInstance(pomFile, identifier);
+                    backupResolverType.getConstructor(InputStream.class, ArtifactIdentifier.class);
+            return c.newInstance(stream, identifier);
         } catch (Exception x){
             return null;
         }

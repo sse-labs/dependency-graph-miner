@@ -8,6 +8,7 @@ import java.io.InputStream;
 import java.io.UnsupportedEncodingException;
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.net.URLConnection;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 
@@ -28,6 +29,10 @@ public class MavenCentralRepository {
 
     public InputStream openPomFileInputStream(ArtifactIdentifier ident){
         return PomFileUtils.openPomFileInputStream(ident);
+    }
+
+    public URLConnection openPomFileConnection(ArtifactIdentifier ident){
+        return PomFileUtils.openPomFileConnection(ident);
     }
 
     public static MavenCentralRepository getInstance(){

@@ -2,11 +2,9 @@ package org.tud.vulnanalysis.pom.dependencies;
 
 import org.tud.vulnanalysis.model.ArtifactDependency;
 import org.tud.vulnanalysis.model.ArtifactIdentifier;
+import org.tud.vulnanalysis.pom.PomFileUtils;
 
-import java.io.BufferedReader;
-import java.io.File;
-import java.io.IOException;
-import java.io.InputStreamReader;
+import java.io.*;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.util.ArrayList;
@@ -15,9 +13,30 @@ import java.util.List;
 
 public class MvnPluginDependencyResolver extends DependencyResolver {
 
+    private File pomFile;
 
-    public MvnPluginDependencyResolver(File pomFile, ArtifactIdentifier identifier) {
-        super(pomFile, identifier);
+    //TODO: This needs to be handled differently..
+    private File workDir = Paths.get("C:\\Users\\Fujitsu\\Documents\\Temp\\my-maven-miner\\workdir").toFile();
+    private File tempDir;
+
+    public MvnPluginDependencyResolver(InputStream pomFileStream, ArtifactIdentifier identifier) {
+        super(pomFileStream, identifier);
+        this.writePomFile();
+    }
+
+    private void writePomFile(){
+        tempDir = Paths.get(workDir.getAbsolutePath(), identifier.getCoordinates().replace(":", "-")).toFile();
+        tempDir.mkdirs();
+        this.pomFile = Paths.get(tempDir.getAbsolutePath(), "pom.xml").toFile();
+
+        if(!PomFileUtils.writeToPomFile(pomFileInputStream, pomFile)){
+            throw new RuntimeException("Failed to write POM stream to file");
+        }
+    }
+
+    private void cleanupPomFile(){
+        this.pomFile.delete();
+        this.tempDir.delete();
     }
 
     @Override
@@ -68,6 +87,9 @@ public class MvnPluginDependencyResolver extends DependencyResolver {
             result.appendError(error);
             x.printStackTrace();
         }
+
+        if(!result.hasErrors())
+            cleanupPomFile();
 
         return result;
     }

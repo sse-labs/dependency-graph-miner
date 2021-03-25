@@ -3,18 +3,15 @@ package org.tud.vulnanalysis.pom.dependencies;
 import org.junit.jupiter.api.*;
 import org.tud.vulnanalysis.model.ArtifactDependency;
 import org.tud.vulnanalysis.model.ArtifactIdentifier;
-import org.tud.vulnanalysis.pom.PomFileDownloadResponse;
 import org.tud.vulnanalysis.pom.PomFileUtils;
 
-import javax.naming.spi.Resolver;
-import java.io.File;
-import java.nio.file.Paths;
+import java.io.InputStream;
 import java.util.Objects;
 import java.util.Set;
 
 public class RecursiveDependencyResolverTest {
 
-    private final ArtifactIdentifier artifactIdent =
+    private final ArtifactIdentifier normalArtifactIdent =
             new ArtifactIdentifier("org.opencypher", "okapi-ir", "1.0.0-beta3");
 
     private final ArtifactIdentifier quarkusIdent =
@@ -27,42 +24,23 @@ public class RecursiveDependencyResolverTest {
             new ArtifactIdentifier("org.apache.spark", "spark-repl_2.12", "2.4.4");
 
 
-    private static File tempDir = new File("test-temp/");
-    private File pomFile = Paths.get(tempDir.getAbsolutePath(), "pom.xml").toFile();
-    private File quarkusFile = Paths.get(tempDir.getAbsolutePath(), "quarkus.pom").toFile();
-    private File missingVersionsFile = Paths.get(tempDir.getAbsolutePath(), "missing.pom").toFile();
-    private File interpolationFile = Paths.get(tempDir.getAbsolutePath(), "interpolation.pom").toFile();
+    private ResolverResult processArtifactWithRecursiveResolver(ArtifactIdentifier ident){
+        InputStream stream = PomFileUtils.openPomFileInputStream(ident);
+        Assertions.assertNotNull(stream);
 
-    @BeforeAll
-    static void createTempDir(){
-        tempDir.mkdir();
-    }
+        RecursiveDependencyResolver resolver = new RecursiveDependencyResolver(stream, ident);
+        resolver.setIncludeDependenciesInProfiles(false);
+        ResolverResult result = resolver.resolveDependencies();
+        Assertions.assertFalse(result.hasErrors());
+        Assertions.assertTrue(result.hasResults());
 
-    @AfterAll
-    static void deleteTempDir(){
-        tempDir.delete();
-    }
-
-    @BeforeEach
-    public void setUp() {
-        if(pomFile.exists()){
-            pomFile.delete();
-        }
-
-        PomFileDownloadResponse response = PomFileUtils.downloadPomFile(artifactIdent, pomFile);
-
-        Assertions.assertTrue(response.getSuccess());
-        Assertions.assertTrue(pomFile.exists());
+        return result;
     }
 
     @Test()
     @DisplayName("Test Dependency Resolving for Recursive Parents")
     public void testResolveDependencies(){
-        IDependencyResolver resolver = new RecursiveDependencyResolver(pomFile, artifactIdent);
-        ResolverResult result = resolver.resolveDependencies();
-
-        Assertions.assertFalse(result.hasErrors());
-        Assertions.assertTrue(result.hasResults());
+        ResolverResult result = processArtifactWithRecursiveResolver(normalArtifactIdent);
 
         Set<ArtifactDependency> dependencies = result.getResults();
 
@@ -75,16 +53,7 @@ public class RecursiveDependencyResolverTest {
     @Test()
     @DisplayName("RecusiveResolver should deal with complicated poms")
     public void testQuarkusPom() {
-        PomFileDownloadResponse response = PomFileUtils.downloadPomFile(quarkusIdent, quarkusFile);
-
-        Assertions.assertTrue(response.getSuccess());
-        Assertions.assertTrue(quarkusFile.exists());
-
-        IDependencyResolver resolver = new RecursiveDependencyResolver(quarkusFile, quarkusIdent);
-        ResolverResult result = resolver.resolveDependencies();
-
-        Assertions.assertFalse(result.hasErrors());
-        Assertions.assertTrue(result.hasResults());
+        ResolverResult result = processArtifactWithRecursiveResolver(quarkusIdent);
 
         Set<ArtifactDependency> dependencies = result.getResults();
 
@@ -102,18 +71,7 @@ public class RecursiveDependencyResolverTest {
     @Test()
     @DisplayName("Recursive Resolver must deal with interpolation in artifact identifiers")
     public void testInterpolation(){
-        PomFileDownloadResponse response = PomFileUtils.downloadPomFile(artifactWithIdentifierInterpolation,
-                interpolationFile);
-
-        Assertions.assertTrue(response.getSuccess());
-        Assertions.assertTrue(interpolationFile.exists());
-
-        IDependencyResolver res = new RecursiveDependencyResolver(interpolationFile, artifactWithIdentifierInterpolation);
-
-        ResolverResult result = res.resolveDependencies();
-
-        Assertions.assertFalse(result.hasErrors());
-        Assertions.assertTrue(result.hasResults());
+        ResolverResult result = processArtifactWithRecursiveResolver(artifactWithIdentifierInterpolation);
 
         Set<ArtifactDependency> deps = result.getResults();
 
@@ -123,16 +81,7 @@ public class RecursiveDependencyResolverTest {
     @Test()
     @DisplayName("RecursiveResolver must deal with missing version definitions")
     public void testMissingVersions(){
-        PomFileDownloadResponse response = PomFileUtils.downloadPomFile(artifactWithMissingVersions, missingVersionsFile);
-
-        Assertions.assertTrue(response.getSuccess());
-        Assertions.assertTrue(missingVersionsFile.exists());
-
-        IDependencyResolver res = new RecursiveDependencyResolver(missingVersionsFile, artifactWithMissingVersions);
-        ResolverResult result = res.resolveDependencies();
-
-        Assertions.assertFalse(result.hasErrors());
-        Assertions.assertTrue(result.hasResults());
+        ResolverResult result = processArtifactWithRecursiveResolver(artifactWithMissingVersions);
 
         Set<ArtifactDependency> deps = result.getResults();
 
@@ -145,20 +94,19 @@ public class RecursiveDependencyResolverTest {
     @Test()
     @DisplayName("RecursiveResolver should output the same as the MavenResolver")
     public void compareToMvnResolver(){
-        IDependencyResolver mvnResolver = new MvnPluginDependencyResolver(pomFile, artifactIdent);
-        IDependencyResolver recursiveResolver = new RecursiveDependencyResolver(pomFile, artifactIdent);
-
         long startTime = System.currentTimeMillis();
+        ResolverResult recResult = processArtifactWithRecursiveResolver(normalArtifactIdent);
+        long recDuration = System.currentTimeMillis() - startTime;
+
+        IDependencyResolver mvnResolver =
+                new MvnPluginDependencyResolver(PomFileUtils.openPomFileInputStream(normalArtifactIdent), normalArtifactIdent);
+
+        startTime = System.currentTimeMillis();
         ResolverResult mvnResult = mvnResolver.resolveDependencies();
-        long mvnTime = System.currentTimeMillis();
-        ResolverResult recResult = recursiveResolver.resolveDependencies();
-        long endTime = System.currentTimeMillis();
+        long mvnDuration = System.currentTimeMillis() - startTime;
 
-        long durationMvn = mvnTime - startTime;
-        long durationRec = endTime - mvnTime;
-
-        System.out.println("Time Maven: " + durationMvn);
-        System.out.println("Time Recursive: " + durationRec);
+        System.out.println("Time Maven: " + mvnDuration);
+        System.out.println("Time Recursive: " + recDuration);
 
         Assertions.assertFalse(mvnResult.hasErrors() || recResult.hasErrors());
         Assertions.assertTrue(mvnResult.hasResults() && recResult.hasResults());
@@ -170,22 +118,5 @@ public class RecursiveDependencyResolverTest {
         Assertions.assertEquals(17, recDeps.size());
 
         Assertions.assertTrue(Objects.deepEquals(mvnDeps, recDeps));
-    }
-
-    @AfterEach
-    public void destroy(){
-        pomFile.delete();
-
-        if(quarkusFile.exists()){
-            quarkusFile.delete();
-        }
-
-        if(missingVersionsFile.exists()){
-            missingVersionsFile.delete();
-        }
-
-        if(interpolationFile.exists()){
-            interpolationFile.delete();
-        }
     }
 }
