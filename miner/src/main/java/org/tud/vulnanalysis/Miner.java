@@ -4,20 +4,22 @@ import org.tud.vulnanalysis.lucene.BufferedGAVIterator;
 import org.tud.vulnanalysis.model.ArtifactIdentifier;
 import org.tud.vulnanalysis.model.MavenArtifact;
 import org.tud.vulnanalysis.model.MavenCentralRepository;
+import org.tud.vulnanalysis.pom.PomFileBatchResolver;
 import org.tud.vulnanalysis.pom.dependencies.*;
 
 import java.io.IOException;
 import java.net.URLConnection;
+import java.util.ArrayList;
 
 public class Miner {
 
     private static DependencyResolverProvider ResolverProvider = DependencyResolverProvider.getInstance();
 
-    public static void main(String[] args) throws IOException {
+    public static void main(String[] args) throws IOException, InterruptedException{
         int current = 0;
 
         ResolverProvider.registerResolverType(RecursiveDependencyResolver.class);
-        ResolverProvider.registerBackupResolverType(MvnPluginDependencyResolver.class);
+        //ResolverProvider.registerBackupResolverType(MvnPluginDependencyResolver.class);
 
         BufferedGAVIterator iterator =
                 new BufferedGAVIterator("C:\\Users\\Fujitsu\\Documents\\Research\\Vulnerabilities\\repos\\maven-miner\\index\\central-lucene-index");
@@ -28,55 +30,48 @@ public class Miner {
         System.out.println("Done, start iterating artifacts..");
         MavenCentralRepository repo = MavenCentralRepository.getInstance();
 
+        ArrayList<ArtifactIdentifier> batch = new ArrayList<>();
+        PomFileBatchResolver resolver = new PomFileBatchResolver();
+        PomFileBatchResolver resolver2 = new PomFileBatchResolver();
+        resolver.start();
+        resolver2.start();
+        boolean useRes1 = true;
+        long startTime = System.currentTimeMillis();
+        int batchCnt = 0;
+
+
         while(iterator.hasNext()){
 
             ArtifactIdentifier ident = iterator.next();
+            batch.add(ident);
 
-            System.out.println(current + " - Downloading pom file for " + ident.getCoordinates());
-
-            URLConnection pomConnection = repo.openPomFileConnection(ident);
-
-            if(pomConnection == null){
-                System.err.println("Failed to download POM file.");
-                continue;
-            }
-
-            ResolverResult result = ResolverProvider
-                    .buildResolver(pomConnection.getInputStream(), ident)
-                    .resolveDependencies();
-
-            if(result.hasErrors()){
-                for(ResolverError e: result.getErrors()){
-                    System.err.println(e.toString());
+            if(batch.size() >= 50){
+                if(useRes1){
+                    System.out.println("RES1: Trying to schedule batch " + batchCnt + "of 50 identifiers...");
+                    resolver.assignBatch(batch);
+                    useRes1 = false;
                 }
+                else{
+                    System.out.println("RES2: Trying to schedule batch " + batchCnt + " of 50 identifiers...");
+                    resolver2.assignBatch(batch);
+                    useRes1 = true;
+                }
+
+                System.out.println("Done scheduling batch " + batchCnt);
+                batch = new ArrayList<>();
+                batchCnt++;
             }
 
-            if(result.hasErrors() && result.hasResults()){
-                System.err.println("Got " + result.getErrors().size() + " errors while resolving, falling back to secondary resolver ...");
-                result = ResolverProvider.buildBackupResolver(repo.openPomFileInputStream(ident), ident).resolveDependencies();
-            }
-            else if(result.hasErrors()){
-                System.err.println("Got " + result.getErrors().size() + " critical errors while resolving, not falling back.");
-            }
-
-            if(result.hasResults()){
-                MavenArtifact artifact = new MavenArtifact(ident, pomConnection.getLastModified(), result.getResults());
-                System.out.println(artifact);
-            }
-            else
-            {
-                System.err.println("No results for this artifact.");
-            }
-
-            if(current > 330){
+            if(current > 1000){
                 break;
             }
-
-
-
             current++;
         }
 
         System.out.println("Total artifacts processed: " + current);
+        long endTime = System.currentTimeMillis() - startTime;
+        System.out.println("Finished scheduling last batch after: " + endTime);
+        resolver.requestStop();
+        resolver2.requestStop();
     }
 }

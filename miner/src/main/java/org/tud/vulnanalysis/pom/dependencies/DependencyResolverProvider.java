@@ -17,6 +17,10 @@ public class DependencyResolverProvider {
         this.backupResolverType = null;
     }
 
+    public boolean backupResolverEnabled(){
+        return this.backupResolverType != null;
+    }
+
     public DependencyResolver buildResolver(InputStream stream, ArtifactIdentifier identifier){
         try {
             Constructor<? extends DependencyResolver> c = resolverType.getConstructor(InputStream.class, ArtifactIdentifier.class);
@@ -56,4 +60,5 @@ public class DependencyResolverProvider {
 
         return theInstance;
     }
+
 }
