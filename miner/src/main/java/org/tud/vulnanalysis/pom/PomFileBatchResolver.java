@@ -1,5 +1,6 @@
 package org.tud.vulnanalysis.pom;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -30,9 +31,12 @@ public class PomFileBatchResolver extends Thread {
     private List<ArtifactIdentifier> batch;
     private Logger log = LogManager.getLogger(PomFileBatchResolver.class);
 
+    private ObjectMapper serializer;
+
 
     public PomFileBatchResolver(List<ArtifactIdentifier> batch){
         this.batch = batch;
+        this.serializer = new ObjectMapper();
     }
 
 
@@ -130,7 +134,7 @@ public class PomFileBatchResolver extends Thread {
             for(MavenArtifact artifact: artifactBatch){
                 session.writeTransaction((TransactionWork<Void>) transaction -> {
                     transaction.run("CREATE (:Artifact {groupId: $group, artifactId: $artifact, version: $version, "+
-                            "createdAt: $created, parentCoords: $parent, coordinates: $coords})",
+                            "createdAt: $created, parentCoords: $parent, coordinates: $coords, errorsWhileResolving: $resolvererrors})",
                             buildParamMap(artifact));
                     return null;
                 });
@@ -139,13 +143,24 @@ public class PomFileBatchResolver extends Thread {
     }
 
     private Value buildParamMap(MavenArtifact artifact){
+        String depdendencyString = "null";
+
+        try{
+            depdendencyString = this.serializer.writeValueAsString(artifact.getDependencies());
+        }
+        catch(Exception x){
+            log.error("Failed to serialize dependencies.", x);
+        }
+
         return parameters(
           "group", artifact.getIdentifier().GroupId,
           "artifact", artifact.getIdentifier().ArtifactId,
           "version", artifact.getIdentifier().Version,
           "created", artifact.getLastModified(),
           "parent", artifact.getParent() != null ? artifact.getParent().getCoordinates() : "none",
-          "coords", artifact.getIdentifier().getCoordinates()
+          "coords", artifact.getIdentifier().getCoordinates(),
+          "resolvererrors", artifact.getErrorsWhileResolving().size(),
+          "dependencies", depdendencyString
         );
     }
 
