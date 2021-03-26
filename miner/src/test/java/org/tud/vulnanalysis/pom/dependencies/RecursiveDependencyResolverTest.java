@@ -23,6 +23,9 @@ public class RecursiveDependencyResolverTest {
     private final ArtifactIdentifier artifactWithIdentifierInterpolation =
             new ArtifactIdentifier("org.apache.spark", "spark-repl_2.12", "2.4.4");
 
+    private final ArtifactIdentifier infiniteLoop =
+            new ArtifactIdentifier("org.finos.legend.engine", "legend-engine-language-pure-dsl-service", "2.18.0");
+
 
     private ResolverResult processArtifactWithRecursiveResolver(ArtifactIdentifier ident){
         InputStream stream = PomFileUtils.openPomFileInputStream(ident);
@@ -48,6 +51,13 @@ public class RecursiveDependencyResolverTest {
         Assertions.assertFalse(dependencies.isEmpty());
 
         Assertions.assertEquals(17, dependencies.size());
+    }
+
+    @Test()
+    @DisplayName("RecursiveResolver must not run into infinite loops")
+    public void testInfiniteLoops(){
+        ResolverResult result = processArtifactWithRecursiveResolver(infiniteLoop);
+        Assertions.assertNotNull(result.getResults());
     }
 
     @Test()

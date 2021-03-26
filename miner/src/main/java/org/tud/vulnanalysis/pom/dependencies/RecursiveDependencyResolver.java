@@ -199,6 +199,31 @@ public class RecursiveDependencyResolver extends DependencyResolver {
 
     private String resolvePropertyValueInDocument(String propertyName, ArtifactIdentifier documentIdentifier,
                                                   ArtifactIdentifier parentIdentifier, Document doc, DependencySpec specifiedIn){
+
+        // Begin with special variables, as there are actually people that redefine "parent.version" inside their
+        // Properties tag..which leads to endless recursion
+        if(specifiedIn.DeclaredIn.equals(documentIdentifier) &&
+                (propertyName.startsWith("project.") || propertyName.startsWith("pom."))) {
+            String subPropertyName = propertyName.substring(propertyName.indexOf('.') + 1).trim().toLowerCase();
+            switch (subPropertyName) {
+                case "groupid":
+                    return documentIdentifier.GroupId;
+                case "artifactid":
+                    return documentIdentifier.ArtifactId;
+                case "version":
+                    return documentIdentifier.Version;
+                case "parent.version":
+                    if (parentIdentifier != null && !specifiedIn.IsDeclaredInImportPom) {
+                        return parentIdentifier.Version;
+                    }
+                    ResolverError error =
+                            new ResolverError.ParsingRelatedResolverError("Reference to parent version but no parent found",
+                                    parentIdentifier == null ? null : parentIdentifier.toString());
+                    this.result.appendError(error);
+                    return null;
+            }
+        }
+
         NodeList matchingNodes = doc.getElementsByTagName(propertyName);
         for(int j = 0; j < matchingNodes.getLength(); j++){
             Node currentNode = matchingNodes.item(j);
@@ -209,27 +234,6 @@ public class RecursiveDependencyResolver extends DependencyResolver {
             }
         }
 
-        if(specifiedIn.DeclaredIn.equals(documentIdentifier) &&
-                (propertyName.startsWith("project.") || propertyName.startsWith("pom."))){
-            String subPropertyName = propertyName.substring(propertyName.indexOf('.') + 1).trim().toLowerCase();
-            switch(subPropertyName){
-                case "groupid":
-                    return documentIdentifier.GroupId;
-                case "artifactid":
-                    return documentIdentifier.ArtifactId;
-                case "version":
-                    return documentIdentifier.Version;
-                case "parent.version":
-                    if(parentIdentifier != null && !specifiedIn.IsDeclaredInImportPom){
-                        return parentIdentifier.Version;
-                    }
-                    ResolverError error =
-                            new ResolverError.ParsingRelatedResolverError("Reference to parent version but no parent found",
-                                    parentIdentifier == null ? null : parentIdentifier.toString());
-                    this.result.appendError(error);
-                    return null;
-            }
-        }
 
         return null;
     }
