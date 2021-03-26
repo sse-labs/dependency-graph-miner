@@ -10,6 +10,8 @@ public class MinerConfiguration {
 
     public int NumberOfWorkerThreads;
 
+    public int BatchSize;
+
     public String Neo4jHost;
 
     public String Neo4jUsername;

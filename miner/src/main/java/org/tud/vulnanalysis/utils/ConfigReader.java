@@ -15,6 +15,7 @@ public class ConfigReader {
     private static final String WorkDirKey = "workdir";
     private static final String IndexDirKey = "indexdir";
     private static final String ThreadCountKey = "workerthreads";
+    private static final String BatchSizeKey = "batchsize";
     private static final String Neo4jHostKey = "neo4j.host";
     private static final String Neo4jUserKey = "neo4j.user";
     private static final String Neo4jPassKey = "neo4j.pass";
@@ -50,6 +51,12 @@ public class ConfigReader {
             } else {
                 log.error("Configuration is missing required key " + IndexDirKey);
                 return null;
+            }
+
+            if(props.containsKey(BatchSizeKey)){
+                config.BatchSize = Integer.parseInt(props.getProperty(BatchSizeKey));
+            } else {
+                config.BatchSize = 100;
             }
 
             if(props.containsKey(Neo4jHostKey)){

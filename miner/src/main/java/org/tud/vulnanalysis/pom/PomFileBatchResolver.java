@@ -4,7 +4,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import org.neo4j.driver.Session;
-import org.neo4j.driver.Transaction;
 import org.neo4j.driver.TransactionWork;
 import org.neo4j.driver.Value;
 import org.tud.vulnanalysis.model.ArtifactIdentifier;
@@ -79,25 +78,22 @@ public class PomFileBatchResolver extends Thread {
 
             // If we have (possibly corrupt) results and errors while resolving, retry with slower implementation
             if(dependcyResolverResult.hasErrors() && dependcyResolverResult.hasResults()){
+                log.warn("Got " + dependcyResolverResult.getErrors().size() +
+                        " errors while resolving " + identifier.toString());
 
                 if(ResolverProvider.backupResolverEnabled()){
-                    log.warn("Got " + dependcyResolverResult.getErrors().size() +
-                            " errors while resolving, falling back to secondary resolver ...");
+                    log.trace("Retrying artifact with backup resolver: " + identifier.toString());
 
                     dependcyResolverResult = ResolverProvider
                             .buildBackupResolver(MavenRepo.openPomFileInputStream(identifier), identifier)
                             .resolveDependencies();
-                }
-                else {
-                    log.warn("Got " + dependcyResolverResult.getErrors().size() +
-                            " errors while resolving, no backup resolver specified.");
                 }
 
             }
             // In this case it is unlikely that the backup resolver would make any difference
             else if(dependcyResolverResult.hasErrors()){
                 log.warn("Got " + dependcyResolverResult.getErrors().size() +
-                        " critical errors while resolving, not falling back.");
+                        " critical errors while resolving, not falling back: " + identifier.toString());
             }
 
             if(dependcyResolverResult.hasResults()){
@@ -113,7 +109,7 @@ public class PomFileBatchResolver extends Thread {
             }
             else
             {
-                log.warn("No results for this artifact.");
+                log.warn("No results for this artifact: " + identifier.toString());
                 return null;
             }
         }

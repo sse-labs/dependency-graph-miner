@@ -91,7 +91,7 @@ public class Miner {
             ArtifactIdentifier currentIdentifier = this.artifactIterator.next();
             batch.add(currentIdentifier);
 
-            if(batch.size() >= 50){
+            if(batch.size() >= config.BatchSize){
                 log.trace("Scheduling a new batch @ " + artifactCnt + " artifacts..");
                 Thread worker = new PomFileBatchResolver(batch);
                 this.threadPool.execute(worker);

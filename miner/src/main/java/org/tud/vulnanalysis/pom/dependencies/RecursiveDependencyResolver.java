@@ -417,7 +417,8 @@ public class RecursiveDependencyResolver extends DependencyResolver {
         Document currentDoc = rootPom;
 
         while(hasParentDefinition(currentDoc)){
-            ArtifactIdentifier parentIdent = getParentIdentifier(currentDoc);
+            ArtifactIdentifier currentIdent = this.parentIdentifierHierarchy.get(this.parentIdentifierHierarchy.size() - 1);
+            ArtifactIdentifier parentIdent = getParentIdentifier(currentDoc, currentIdent);
 
             if(parentIdent == null){
                 // Error object already created
@@ -455,11 +456,11 @@ public class RecursiveDependencyResolver extends DependencyResolver {
         return doc.getDocumentElement().getElementsByTagName("parent").getLength() > 0;
     }
 
-    private ArtifactIdentifier getParentIdentifier(Document doc){
+    private ArtifactIdentifier getParentIdentifier(Document doc, ArtifactIdentifier currentIdentifier){
         NodeList parentElems = doc.getDocumentElement().getElementsByTagName("parent");
 
         if(parentElems.getLength() > 1) {
-            log.warn("More than one parent element detected for artifact: " + this.identifier.toString());
+            log.warn("More than one parent element detected for artifact: " + currentIdentifier.toString());
         }
 
         Element parentElem = (Element) parentElems.item(0);
