@@ -73,6 +73,12 @@ public class Miner {
         return true;
     }
 
+    public void shutdown(){
+        if(Neo4jSessionFactory.getInstance() != null){
+            Neo4jSessionFactory.getInstance().close();
+        }
+    }
+
     public void processArtifacts(){
         if(!this.isInitialized){
             throw new IllegalStateException("Cannot process Maven Central artifacts, miner is not initialized.");
@@ -131,5 +137,7 @@ public class Miner {
         long duration = System.currentTimeMillis() - startTime;
 
         LogManager.getRootLogger().info("Processing took " + duration + " ms");
+
+        miner.shutdown();
     }
 }

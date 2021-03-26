@@ -4,6 +4,9 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import org.neo4j.driver.Session;
+import org.neo4j.driver.Transaction;
+import org.neo4j.driver.TransactionWork;
+import org.neo4j.driver.Value;
 import org.tud.vulnanalysis.model.ArtifactIdentifier;
 import org.tud.vulnanalysis.model.MavenArtifact;
 import org.tud.vulnanalysis.model.MavenCentralRepository;
@@ -16,6 +19,8 @@ import java.io.IOException;
 import java.net.URLConnection;
 import java.util.ArrayList;
 import java.util.List;
+
+import static org.neo4j.driver.Values.parameters;
 
 public class PomFileBatchResolver extends Thread {
 
@@ -127,9 +132,25 @@ public class PomFileBatchResolver extends Thread {
     private void storeMavenArtifactBatch(List<MavenArtifact> artifactBatch){
         try(Session session = SessionFactory.buildSession()){
             for(MavenArtifact artifact: artifactBatch){
-
+                session.writeTransaction((TransactionWork<Void>) transaction -> {
+                    transaction.run("CREATE (:Artifact {groupId: $group, artifactId: $artifact, version: $version, "+
+                            "createdAt: $created, parentCoords: $parent, coordinates: $coords})",
+                            buildParamMap(artifact));
+                    return null;
+                });
             }
         }
+    }
+
+    private Value buildParamMap(MavenArtifact artifact){
+        return parameters(
+          "group", artifact.getIdentifier().GroupId,
+          "artifact", artifact.getIdentifier().ArtifactId,
+          "version", artifact.getIdentifier().Version,
+          "created", artifact.getLastModified(),
+          "parent", artifact.getParent() != null ? artifact.getParent().getCoordinates() : "none",
+          "coords", artifact.getIdentifier().getCoordinates()
+        );
     }
 
 }
