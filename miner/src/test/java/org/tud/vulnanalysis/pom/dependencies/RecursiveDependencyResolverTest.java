@@ -26,6 +26,9 @@ public class RecursiveDependencyResolverTest {
     private final ArtifactIdentifier infiniteLoop =
             new ArtifactIdentifier("org.finos.legend.engine", "legend-engine-language-pure-dsl-service", "2.18.0");
 
+    private final ArtifactIdentifier infiniteLoop2 =
+            new ArtifactIdentifier("org.apache.geronimo.modules","geronimo-axis2-builder", "2.1.5");
+
 
     private ResolverResult processArtifactWithRecursiveResolver(ArtifactIdentifier ident){
         InputStream stream = PomFileUtils.openPomFileInputStream(ident);
@@ -57,6 +60,13 @@ public class RecursiveDependencyResolverTest {
     @DisplayName("RecursiveResolver must not run into infinite loops")
     public void testInfiniteLoops(){
         ResolverResult result = processArtifactWithRecursiveResolver(infiniteLoop);
+        Assertions.assertNotNull(result.getResults());
+    }
+
+    @Test()
+    @DisplayName("RecursiveResolver must no run into infinite loops 2")
+    public void testInfiniteLoops2(){
+        ResolverResult result = processArtifactWithRecursiveResolver(infiniteLoop2);
         Assertions.assertNotNull(result.getResults());
     }
 

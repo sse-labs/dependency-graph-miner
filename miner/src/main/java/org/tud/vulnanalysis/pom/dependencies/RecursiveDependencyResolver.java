@@ -187,7 +187,8 @@ public class RecursiveDependencyResolver extends DependencyResolver {
             String reference = value.substring(value.indexOf("${"), value.indexOf("}") + 1);
             String expandedValue = resolvePropertyValue(reference, depSpec, startLevel);
 
-            if(expandedValue == null){
+            // Some references resolve to themselves...like <version>${version}</version>
+            if(expandedValue == null || expandedValue.equals(reference)){
                 return null;
             }
 
