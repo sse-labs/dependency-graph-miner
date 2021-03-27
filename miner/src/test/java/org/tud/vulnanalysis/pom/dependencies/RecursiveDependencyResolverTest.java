@@ -30,6 +30,21 @@ public class RecursiveDependencyResolverTest {
             new ArtifactIdentifier("org.apache.geronimo.modules","geronimo-axis2-builder", "2.1.5");
 
 
+    private final ArtifactIdentifier incompleteDependencyInPlugin =
+            new ArtifactIdentifier("org.opendaylight.vtn", "features-vtn-manager", "0.2.1-Helium-SR1");
+
+
+    private final ArtifactIdentifier deprecatedPropertyName =
+            new ArtifactIdentifier("org.apache.geronimo.modules", "geronimo-axis2-builder","2.2.1");
+
+    private final ArtifactIdentifier errorIdent =
+            new ArtifactIdentifier("org.kie.modules", "org-jboss-as-jaxr-main", "6.4.0.Final");
+
+    private final ArtifactIdentifier propertyReferencesInGroupId =
+            new ArtifactIdentifier("org.wildfly","wildfly-bean-validation","23.0.0.Beta1");
+
+
+
     private ResolverResult processArtifactWithRecursiveResolver(ArtifactIdentifier ident){
         InputStream stream = PomFileUtils.openPomFileInputStream(ident);
         Assertions.assertNotNull(stream);
@@ -37,7 +52,8 @@ public class RecursiveDependencyResolverTest {
         RecursiveDependencyResolver resolver = new RecursiveDependencyResolver(stream, ident);
         resolver.setIncludeDependenciesInProfiles(false);
         ResolverResult result = resolver.resolveDependencies();
-        Assertions.assertFalse(result.hasErrors());
+        // Download errors are "not our fault"
+        Assertions.assertTrue(!result.hasErrors() || result.hasDownloadErrors());
         Assertions.assertTrue(result.hasResults());
 
         return result;
@@ -89,6 +105,13 @@ public class RecursiveDependencyResolverTest {
     }
 
     @Test()
+    @DisplayName("RecursiveResolver must deal with the deprecated property name 'version'")
+    public void testVersionPropertyName(){
+        ResolverResult result = processArtifactWithRecursiveResolver(deprecatedPropertyName);
+        Assertions.assertTrue(result.getResults().size() > 0);
+    }
+
+    @Test()
     @DisplayName("Recursive Resolver must deal with interpolation in artifact identifiers")
     public void testInterpolation(){
         ResolverResult result = processArtifactWithRecursiveResolver(artifactWithIdentifierInterpolation);
@@ -96,6 +119,14 @@ public class RecursiveDependencyResolverTest {
         Set<ArtifactDependency> deps = result.getResults();
 
         Assertions.assertNotNull(deps);
+    }
+
+    @Test()
+    @DisplayName("Resolver must deal with incomplete dependencies in plugins")
+    public void testIncompleteDependency(){
+        ResolverResult result = processArtifactWithRecursiveResolver(incompleteDependencyInPlugin);
+
+        Assertions.assertFalse(result.hasErrors());
     }
 
     @Test()
@@ -110,6 +141,25 @@ public class RecursiveDependencyResolverTest {
 
         Assertions.assertEquals(12, deps.size());
     }
+    @Test()
+    @DisplayName("RecursiveResolver must correctly mark download-related errors")
+    public void testNotFoundErrors(){
+        ResolverResult result = processArtifactWithRecursiveResolver(errorIdent);
+
+        Assertions.assertTrue(result.hasDownloadErrors());
+
+        Assertions.assertTrue(result.getErrors().stream().anyMatch( s ->
+                s.toString().contains("org.jboss.dashboard-builder:dashboard-builder-bom:6.4.0.Final")));
+    }
+
+    @Test()
+    @DisplayName("RecursiveResolver must deal with property references in groupIds")
+    public void testReferencesInGroupId(){
+        ResolverResult result = processArtifactWithRecursiveResolver(propertyReferencesInGroupId);
+
+        Assertions.assertTrue(result.getResults().size() > 0);
+    }
+
 
     @Test()
     @DisplayName("RecursiveResolver should output the same as the MavenResolver")

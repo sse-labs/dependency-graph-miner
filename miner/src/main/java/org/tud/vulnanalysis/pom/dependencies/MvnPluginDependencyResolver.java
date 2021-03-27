@@ -75,7 +75,7 @@ public class MvnPluginDependencyResolver extends DependencyResolver {
             int exitCode = process.waitFor();
 
             if(exitCode != 0){
-                ResolverError error = new ResolverError("Got non-success exit code while invoking maven: " + exitCode);
+                ResolverError error = new ResolverError("Got non-success exit code while invoking maven: " + exitCode, false);
                 result.appendError(error);
                 dumpErrorLogs(output, Paths.get(pomFile.getParent(), "resolver-errors.log").toFile());
             } else {
@@ -84,7 +84,7 @@ public class MvnPluginDependencyResolver extends DependencyResolver {
 
         }
         catch (Exception x){
-            ResolverError error = new ResolverError("Unexpected exception during Maven invocation", x);
+            ResolverError error = new ResolverError("Unexpected exception during Maven invocation", x, false);
             result.appendError(error);
             x.printStackTrace();
         }

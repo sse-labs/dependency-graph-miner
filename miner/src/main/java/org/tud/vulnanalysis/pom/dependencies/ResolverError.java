@@ -4,14 +4,16 @@ public class ResolverError {
 
     public String Message;
     public Throwable Cause;
+    public boolean IsCausedByMissingFile;
 
-    public ResolverError(String message){
+    public ResolverError(String message, boolean causedByMissingFile){
         this.Message = message;
         this.Cause = null;
+        this.IsCausedByMissingFile = causedByMissingFile;
     }
 
-    public ResolverError(String message, Throwable cause){
-        this(message);
+    public ResolverError(String message, Throwable cause, boolean causedByMissingFile){
+        this(message, causedByMissingFile);
         this.Cause = cause;
     }
 
@@ -31,12 +33,12 @@ public class ResolverError {
         public String AffectedElement;
 
         ParsingRelatedResolverError(String message, String affectedElement){
-            super(message);
+            super(message, false);
             this.AffectedElement = affectedElement;
         }
 
         ParsingRelatedResolverError(String message, String affectedElement, Throwable cause){
-            super(message, cause);
+            super(message, cause, false);
             this.AffectedElement = affectedElement;
         }
 

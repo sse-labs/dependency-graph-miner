@@ -12,6 +12,7 @@ import org.w3c.dom.NodeList;
 
 import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
+import java.io.FileNotFoundException;
 import java.io.InputStream;
 import java.util.*;
 
@@ -102,7 +103,7 @@ public class RecursiveDependencyResolver extends DependencyResolver {
             }
 
         } catch (Exception x){
-            ResolverError error = new ResolverError("Uncaught exception while resolving dependencies", x);
+            ResolverError error = new ResolverError("Uncaught exception while resolving dependencies", x, false);
             result.appendError(error);
         }
 
@@ -201,6 +202,11 @@ public class RecursiveDependencyResolver extends DependencyResolver {
     private String resolvePropertyValueInDocument(String propertyName, ArtifactIdentifier documentIdentifier,
                                                   ArtifactIdentifier parentIdentifier, Document doc, DependencySpec specifiedIn){
 
+        // Deprecated built-in property 'version'
+        if(specifiedIn.DeclaredIn.equals(documentIdentifier) && propertyName.toLowerCase().equals("version")){
+            return documentIdentifier.Version;
+        }
+
         // Begin with special variables, as there are actually people that redefine "parent.version" inside their
         // Properties tag..which leads to endless recursion
         if(specifiedIn.DeclaredIn.equals(documentIdentifier) &&
@@ -286,11 +292,13 @@ public class RecursiveDependencyResolver extends DependencyResolver {
             for(DependencySpec managementSpec: this.dependencyManagementSpecsPerHierarchyLevel.get(i)){
 
                 ArtifactDependency dep = managementSpec.Dependency;
+                // It seems that some people actually user property refs in artifact identifiers, which are inside a
+                // <dependencyManagement> tag. We resolve those here on-demand, we don't want to resolve the entire
+                // management specifications, that would certainly produce a few resolver errors.
+                dep.GroupId = resolveAllReferencesInValue(dep.GroupId, incompleteDependency, startLevel);
+                dep.ArtifactId = resolveAllReferencesInValue(dep.ArtifactId, incompleteDependency, startLevel);
+
                 if(dep.GroupId.equals(incompleteDependency.Dependency.GroupId)){
-                    // It seems that some people actually user property refs in artifact identifiers, which are inside a
-                    // <dependencyManagement> tag. We resolve those here on-demand, we don't want to resolve the entire
-                    // management specifications, that would certainly produce a few resolver errors.
-                    dep.ArtifactId = resolveAllReferencesInValue(dep.ArtifactId, incompleteDependency, startLevel);
                     if(dep.ArtifactId != null && dep.ArtifactId.equals(incompleteDependency.Dependency.ArtifactId) &&
                             dep.Version != null){
                         return managementSpec;
@@ -323,13 +331,21 @@ public class RecursiveDependencyResolver extends DependencyResolver {
 
                 DependencyElementContext context = determineDependencyElementContext(currentDependencyElement);
 
+                if(dependency == null && (context == DependencyElementContext.DEPENDENCY_MANAGEMENT ||
+                        context == DependencyElementContext.PROJECT_DEPENDENCY ||
+                        (context == DependencyElementContext.PROFILE_PROJECT_DEPENDENCY && this.includeDependenciesInProfiles))){
+                    ResolverError error = new ResolverError.ParsingRelatedResolverError(
+                            "Incomplete dependency specification found in artifact POM.", docIdent.toString());
+                    this.result.appendError(error);
+                    continue;
+                }
+
                 DependencySpec spec = new DependencySpec(dependency, docIdent, isImportDependency);
 
                 if(context == DependencyElementContext.DEPENDENCY_MANAGEMENT){
                     this.dependencyManagementSpecsPerHierarchyLevel.get(level).add(spec);
                 }
                 else if(context == DependencyElementContext.PROFILE_PROJECT_DEPENDENCY && this.includeDependenciesInProfiles){
-
                     this.dependencySpecsPerHierarchyLevel.get(level).add(spec);
                 }
                 else if(context == DependencyElementContext.PROJECT_DEPENDENCY){
@@ -409,9 +425,6 @@ public class RecursiveDependencyResolver extends DependencyResolver {
         }
 
         if(dependency.GroupId == null || dependency.ArtifactId == null){
-            ResolverError error = new ResolverError.ParsingRelatedResolverError("Incomplete dependency specification found",
-                    dependency.toString());
-            this.result.appendError(error);
             return null;
         }
 
@@ -433,8 +446,8 @@ public class RecursiveDependencyResolver extends DependencyResolver {
             InputStream parentPomStream = MavenCentralRepository.getInstance().openPomFileInputStream(parentIdent);
 
             if(parentPomStream == null){
-                ResolverError error = new ResolverError.ParsingRelatedResolverError("Parent POM not found on Maven Central",
-                        parentIdent.toString());
+                ResolverError error = new ResolverError("Parent POM not found on Maven Central: " + parentIdent.toString(),
+                        true);
                 this.result.appendError(error);
                 throw new RuntimeException("Critical resolver error: Parent POM definition not found on Maven Central");
             }
@@ -494,7 +507,7 @@ public class RecursiveDependencyResolver extends DependencyResolver {
         }
 
         if(ident.GroupId == null || ident.ArtifactId == null || ident.Version == null){
-            ResolverError error = new ResolverError("Incomplete parent definition in POM file");
+            ResolverError error = new ResolverError("Incomplete parent definition in POM file", false);
             this.result.appendError(error);
             return null;
         }
@@ -535,7 +548,7 @@ public class RecursiveDependencyResolver extends DependencyResolver {
                                     .openPomFileInputStream(resolvedImportScopeDep);
 
                             if(dependencyInputStream == null){
-                                throw new RuntimeException("Import Dependency POM definition not found on Maven Central: " +
+                                throw new FileNotFoundException("Import Dependency POM definition not found on Maven Central: " +
                                         resolvedImportScopeDep);
                             }
 
@@ -549,7 +562,11 @@ public class RecursiveDependencyResolver extends DependencyResolver {
                             newImportScopeDeps = true;
                             processRawDependenciesInDocument(dependencyDoc, level, resolvedImportScopeDep,
                                     true);
-                        } catch(Exception x) {
+                        } catch(FileNotFoundException fnfx){
+                            ResolverError error = new ResolverError("Import scope dependency not found", fnfx, true);
+                            this.result.appendError(error);
+                        }
+                        catch(Exception x) {
                             ResolverError error = new ResolverError.ParsingRelatedResolverError(
                                     "Failed to resolve import scope dependency", dep.toString(), x);
                             this.result.appendError(error);

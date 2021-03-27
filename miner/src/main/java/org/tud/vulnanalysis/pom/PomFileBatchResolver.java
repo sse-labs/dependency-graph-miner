@@ -80,24 +80,30 @@ public class PomFileBatchResolver extends Thread {
                     .buildResolver(connection.getInputStream(), identifier)
                     .resolveDependencies();
 
-            // If we have (possibly corrupt) results and errors while resolving, retry with slower implementation
-            if(dependcyResolverResult.hasErrors() && dependcyResolverResult.hasResults()){
-                log.warn("Got " + dependcyResolverResult.getErrors().size() +
-                        " errors while resolving " + identifier.toString());
+            if(!dependcyResolverResult.hasDownloadErrors())
+            {
+                // If we have (possibly corrupt) results and errors while resolving, retry with slower implementation
+                if(dependcyResolverResult.hasErrors() && dependcyResolverResult.hasResults()){
+                    log.warn("Got " + dependcyResolverResult.getErrors().size() +
+                            " errors while resolving " + identifier.toString());
 
-                if(ResolverProvider.backupResolverEnabled()){
-                    log.trace("Retrying artifact with backup resolver: " + identifier.toString());
+                    if(ResolverProvider.backupResolverEnabled()){
+                        log.trace("Retrying artifact with backup resolver: " + identifier.toString());
 
-                    dependcyResolverResult = ResolverProvider
-                            .buildBackupResolver(MavenRepo.openPomFileInputStream(identifier), identifier)
-                            .resolveDependencies();
+                        dependcyResolverResult = ResolverProvider
+                                .buildBackupResolver(MavenRepo.openPomFileInputStream(identifier), identifier)
+                                .resolveDependencies();
+                    }
+
                 }
-
-            }
-            // In this case it is unlikely that the backup resolver would make any difference
-            else if(dependcyResolverResult.hasErrors()){
-                log.warn("Got " + dependcyResolverResult.getErrors().size() +
-                        " critical errors while resolving, not falling back: " + identifier.toString());
+                // In this case it is unlikely that the backup resolver would make any difference
+                else if(dependcyResolverResult.hasErrors()){
+                    log.warn("Got " + dependcyResolverResult.getErrors().size() +
+                            " critical errors while resolving, not falling back: " + identifier.toString());
+                }
+            } else {
+                //TODO: Do we want to use those artifacts?
+                log.warn("Got download errors for " + identifier.toString());
             }
 
             if(dependcyResolverResult.hasResults()){

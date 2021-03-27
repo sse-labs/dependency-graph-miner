@@ -60,6 +60,10 @@ public class ResolverResult {
         return !this.resolverErrors.isEmpty();
     }
 
+    public boolean hasDownloadErrors() {
+        return this.resolverErrors.stream().anyMatch(error -> error.IsCausedByMissingFile);
+    }
+
     public List<ResolverError> getErrors(){
         return this.resolverErrors;
     }
