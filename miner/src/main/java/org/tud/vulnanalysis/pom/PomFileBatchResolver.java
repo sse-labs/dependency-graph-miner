@@ -7,7 +7,6 @@ import org.apache.logging.log4j.Logger;
 import org.neo4j.driver.Session;
 import org.neo4j.driver.TransactionWork;
 import org.neo4j.driver.Value;
-import org.neo4j.driver.Values;
 import org.tud.vulnanalysis.model.ArtifactIdentifier;
 import org.tud.vulnanalysis.model.MavenArtifact;
 import org.tud.vulnanalysis.model.MavenCentralRepository;
@@ -18,9 +17,7 @@ import org.tud.vulnanalysis.storage.Neo4jSessionFactory;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.net.URLConnection;
-import java.time.Instant;
 import java.util.ArrayList;
-import java.util.Date;
 import java.util.List;
 
 import static org.neo4j.driver.Values.parameters;
@@ -173,7 +170,7 @@ public class PomFileBatchResolver extends Thread {
           "group", artifact.getIdentifier().GroupId,
           "artifact", artifact.getIdentifier().ArtifactId,
           "version", artifact.getIdentifier().Version,
-          "created", Values.value(Date.from(Instant.ofEpochMilli(artifact.getLastModified()))),
+          "created", artifact.getLastModified(),
           "parent", artifact.getParent() != null ? artifact.getParent().getCoordinates() : "none",
           "coords", artifact.getIdentifier().getCoordinates(),
           "resolvererrors", resolverErrors,
