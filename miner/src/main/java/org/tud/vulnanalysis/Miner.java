@@ -98,14 +98,9 @@ public class Miner {
                 batch = new ArrayList<>();
             }
 
-            if(artifactCnt > 1000){
-                break;
-            }
-
             artifactCnt++;
         }
-
-
+        
         try{
             log.info("Waiting for threadpool to finish execution...");
             threadPool.shutdown();
@@ -114,7 +109,7 @@ public class Miner {
         catch(InterruptedException ix){
             log.error("Error while waiting for threadpool", ix);
         }
-        log.info("Finished processing artifacts");
+        log.info("Finished processing " + artifactCnt + " artifacts");
     }
 
     public static void main(String[] args) {

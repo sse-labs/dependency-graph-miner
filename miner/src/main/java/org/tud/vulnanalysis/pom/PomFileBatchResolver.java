@@ -18,6 +18,7 @@ import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.net.URLConnection;
 import java.util.ArrayList;
+import java.util.Date;
 import java.util.List;
 
 import static org.neo4j.driver.Values.parameters;
@@ -47,23 +48,27 @@ public class PomFileBatchResolver extends Thread {
 
     private void processBatch(){
 
-        List<MavenArtifact> artifactBatch = new ArrayList<>();
+        List<ResolverResult> resultBatch = new ArrayList<>();
+        List<ArtifactIdentifier> failedIdentifiers = new ArrayList<>();
 
         while(!this.batch.isEmpty()){
             ArtifactIdentifier current = this.batch.remove(0);
-            MavenArtifact artifact = processIdentifier(current);
+            ResolverResult result = processIdentifier(current);
 
-            if(artifact != null)
-                artifactBatch.add(artifact);
+            if(result!= null)
+                resultBatch.add(result);
+            else
+                failedIdentifiers.add(current);
         }
 
-        this.storeMavenArtifactBatch(artifactBatch);
+        this.storeMavenArtifactBatch(resultBatch);
+        this.storeFailedIdentifiers(failedIdentifiers);
 
         this.batch = null;
         log.info("Finished processing batch.");
     }
 
-    private MavenArtifact processIdentifier(ArtifactIdentifier identifier){
+    private ResolverResult processIdentifier(ArtifactIdentifier identifier){
         log.trace("Processing identifier: " + identifier);
 
         try{
@@ -107,15 +112,9 @@ public class PomFileBatchResolver extends Thread {
             }
 
             if(dependcyResolverResult.hasResults()){
-                MavenArtifact artifact =
-                        new MavenArtifact(identifier, lastModified, dependcyResolverResult.getResults());
-                artifact.setErrorsWhileResolving(dependcyResolverResult.getErrors());
-
-                if(dependcyResolverResult.hasParentIdentifier()){
-                    artifact.setParent(dependcyResolverResult.getParentIdentifier());
-                }
-                log.trace("Got artifact: " + artifact);
-                return artifact;
+                dependcyResolverResult.LastModified = lastModified;
+                log.trace("Successfuly processed " + identifier.toString());
+                return dependcyResolverResult;
             }
             else
             {
@@ -135,20 +134,28 @@ public class PomFileBatchResolver extends Thread {
         return null;
     }
 
-    private void storeMavenArtifactBatch(List<MavenArtifact> artifactBatch){
+    private void storeMavenArtifactBatch(List<ResolverResult> resultBatch){
         try(Session session = SessionFactory.buildSession()){
-            for(MavenArtifact artifact: artifactBatch){
+            for(ResolverResult result : resultBatch){
+                MavenArtifact artifact =
+                        new MavenArtifact(result.getRootArtifactIdentifier(), result.LastModified, result.getResults());
+
+                if(result.hasParentIdentifier()){
+                    artifact.setParent(result.getParentIdentifier());
+                }
+
                 session.writeTransaction((TransactionWork<Void>) transaction -> {
                     transaction.run("CREATE (:Artifact {groupId: $group, artifactId: $artifact, version: $version, "+
-                            "createdAt: $created, parentCoords: $parent, coordinates: $coords, errorsWhileResolving: $resolvererrors})",
-                            buildParamMap(artifact));
+                            "createdAt: $created, parentCoords: $parent, coordinates: $coords, errorsWhileResolving: $resolvererrors, " +
+                                    "dependencies: $deps, hasDownloadErrors: $downloaderrors})",
+                            buildParamMap(artifact, result.getErrors().size(), result.hasDownloadErrors()));
                     return null;
                 });
             }
         }
     }
 
-    private Value buildParamMap(MavenArtifact artifact){
+    private Value buildParamMap(MavenArtifact artifact, int resolverErrors, boolean hasDownloadErrors){
         String depdendencyString = "null";
 
         try{
@@ -162,12 +169,27 @@ public class PomFileBatchResolver extends Thread {
           "group", artifact.getIdentifier().GroupId,
           "artifact", artifact.getIdentifier().ArtifactId,
           "version", artifact.getIdentifier().Version,
-          "created", artifact.getLastModified(),
+          "created", new Date(artifact.getLastModified()),
           "parent", artifact.getParent() != null ? artifact.getParent().getCoordinates() : "none",
           "coords", artifact.getIdentifier().getCoordinates(),
-          "resolvererrors", artifact.getErrorsWhileResolving().size(),
-          "dependencies", depdendencyString
+          "resolvererrors", resolverErrors,
+          "downloaderrors", hasDownloadErrors,
+          "deps", depdendencyString
         );
+    }
+
+    private void storeFailedIdentifiers(List<ArtifactIdentifier> identifierList){
+        try(Session session = SessionFactory.buildSession()){
+            for(ArtifactIdentifier current : identifierList){
+                session.writeTransaction((TransactionWork<Void>) tx -> {
+                    tx.run("CREATE (:ProcessingError {groupId: $group, artifactId: $artifact, version: $version})",
+                            parameters("group", current.GroupId,
+                                    "artifact", current.ArtifactId,
+                                    "version", current.Version));
+                    return null;
+                });
+            }
+        }
     }
 
 }

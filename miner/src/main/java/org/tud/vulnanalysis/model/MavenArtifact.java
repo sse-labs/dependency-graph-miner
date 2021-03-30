@@ -11,7 +11,6 @@ public class MavenArtifact {
     private ArtifactIdentifier identifier;
     private long lastModified;
     private Set<ArtifactDependency> dependencies;
-    private List<ResolverError> errorsWhileResolving;
     private ArtifactIdentifier parentIdentifier;
 
     public MavenArtifact(ArtifactIdentifier ident, long lastModified, Set<ArtifactDependency> dependencies){
@@ -26,18 +25,6 @@ public class MavenArtifact {
 
     public ArtifactIdentifier getParent(){
         return this.parentIdentifier;
-    }
-
-    public boolean hasResolverErrors(){
-        return this.errorsWhileResolving != null && !this.errorsWhileResolving.isEmpty();
-    }
-
-    public List<ResolverError> getErrorsWhileResolving(){
-        return this.errorsWhileResolving;
-    }
-
-    public void setErrorsWhileResolving(List<ResolverError> errors){
-        this.errorsWhileResolving = errors;
     }
 
     public long getLastModified(){

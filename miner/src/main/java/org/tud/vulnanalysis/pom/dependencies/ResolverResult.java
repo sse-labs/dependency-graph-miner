@@ -17,11 +17,14 @@ public class ResolverResult {
 
     private ArtifactIdentifier parentArtifactIdentifier;
 
+    public long LastModified;
+
     public ResolverResult(ArtifactIdentifier ident){
         this.rootArtifactIdentifier = ident;
         this.resultSet = null;
         this.resolverErrors = new ArrayList<>();
         this.parentArtifactIdentifier = null;
+        this.LastModified = -1;
     }
 
     public void setParentIdentifier(ArtifactIdentifier parent){
