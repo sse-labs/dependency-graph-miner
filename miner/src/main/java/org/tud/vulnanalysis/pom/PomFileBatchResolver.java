@@ -183,10 +183,11 @@ public class PomFileBatchResolver extends Thread {
         try(Session session = SessionFactory.buildSession()){
             for(ArtifactIdentifier current : identifierList){
                 session.writeTransaction((TransactionWork<Void>) tx -> {
-                    tx.run("CREATE (:ProcessingError {groupId: $group, artifactId: $artifact, version: $version})",
+                    tx.run("CREATE (:ProcessingError {groupId: $group, artifactId: $artifact, version: $version, coordinates: $coords})",
                             parameters("group", current.GroupId,
                                     "artifact", current.ArtifactId,
-                                    "version", current.Version));
+                                    "version", current.Version,
+                                    "coords", current.getCoordinates()));
                     return null;
                 });
             }
