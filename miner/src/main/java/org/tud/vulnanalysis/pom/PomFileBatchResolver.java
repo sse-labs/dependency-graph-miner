@@ -7,6 +7,7 @@ import org.apache.logging.log4j.Logger;
 import org.neo4j.driver.Session;
 import org.neo4j.driver.TransactionWork;
 import org.neo4j.driver.Value;
+import org.neo4j.driver.Values;
 import org.tud.vulnanalysis.model.ArtifactIdentifier;
 import org.tud.vulnanalysis.model.MavenArtifact;
 import org.tud.vulnanalysis.model.MavenCentralRepository;
@@ -17,6 +18,7 @@ import org.tud.vulnanalysis.storage.Neo4jSessionFactory;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.net.URLConnection;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
@@ -107,13 +109,12 @@ public class PomFileBatchResolver extends Thread {
                             " critical errors while resolving, not falling back: " + identifier.toString());
                 }
             } else {
-                //TODO: Do we want to use those artifacts?
                 log.warn("Got download errors for " + identifier.toString());
             }
 
             if(dependcyResolverResult.hasResults()){
                 dependcyResolverResult.LastModified = lastModified;
-                log.trace("Successfuly processed " + identifier.toString());
+                log.trace("Successfully processed " + identifier.toString());
                 return dependcyResolverResult;
             }
             else
@@ -153,6 +154,9 @@ public class PomFileBatchResolver extends Thread {
                 });
             }
         }
+        catch(Exception x){
+            log.error("Critical failure while storing artifacts", x);
+        }
     }
 
     private Value buildParamMap(MavenArtifact artifact, int resolverErrors, boolean hasDownloadErrors){
@@ -169,7 +173,7 @@ public class PomFileBatchResolver extends Thread {
           "group", artifact.getIdentifier().GroupId,
           "artifact", artifact.getIdentifier().ArtifactId,
           "version", artifact.getIdentifier().Version,
-          "created", new Date(artifact.getLastModified()),
+          "created", Values.value(Date.from(Instant.ofEpochMilli(artifact.getLastModified()))),
           "parent", artifact.getParent() != null ? artifact.getParent().getCoordinates() : "none",
           "coords", artifact.getIdentifier().getCoordinates(),
           "resolvererrors", resolverErrors,
@@ -189,6 +193,9 @@ public class PomFileBatchResolver extends Thread {
                     return null;
                 });
             }
+        }
+        catch(Exception x){
+            log.error("Critical failure while storing failed identifiers", x);
         }
     }
 
