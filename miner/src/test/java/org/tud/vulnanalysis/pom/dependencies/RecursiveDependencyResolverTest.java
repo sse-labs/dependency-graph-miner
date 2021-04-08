@@ -4,6 +4,7 @@ import org.junit.jupiter.api.*;
 import org.tud.vulnanalysis.model.ArtifactDependency;
 import org.tud.vulnanalysis.model.ArtifactIdentifier;
 import org.tud.vulnanalysis.pom.PomFileUtils;
+import org.tud.vulnanalysis.utils.MinerConfiguration;
 
 import java.io.InputStream;
 import java.util.Objects;
@@ -49,8 +50,7 @@ public class RecursiveDependencyResolverTest {
         InputStream stream = PomFileUtils.openPomFileInputStream(ident);
         Assertions.assertNotNull(stream);
 
-        RecursiveDependencyResolver resolver = new RecursiveDependencyResolver(stream, ident);
-        resolver.setIncludeDependenciesInProfiles(false);
+        RecursiveDependencyResolver resolver = new RecursiveDependencyResolver(stream, ident, MinerConfiguration.getDefaultConfig());
         ResolverResult result = resolver.resolveDependencies();
         // Download errors are "not our fault"
         Assertions.assertTrue(!result.hasErrors() || result.hasDownloadErrors());
@@ -169,7 +169,7 @@ public class RecursiveDependencyResolverTest {
         long recDuration = System.currentTimeMillis() - startTime;
 
         IDependencyResolver mvnResolver =
-                new MvnPluginDependencyResolver(PomFileUtils.openPomFileInputStream(normalArtifactIdent), normalArtifactIdent);
+                new MvnPluginDependencyResolver(PomFileUtils.openPomFileInputStream(normalArtifactIdent), normalArtifactIdent, MinerConfiguration.getDefaultConfig());
 
         startTime = System.currentTimeMillis();
         ResolverResult mvnResult = mvnResolver.resolveDependencies();

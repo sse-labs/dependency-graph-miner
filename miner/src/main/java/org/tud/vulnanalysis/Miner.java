@@ -32,6 +32,7 @@ public class Miner {
     public Miner(MinerConfiguration config){
         this.isInitialized = false;
         ResolverProvider.registerResolverType(RecursiveDependencyResolver.class);
+        ResolverProvider.registerBackupResolverType(AetherDependencyResolver.class);
         this.config = config;
     }
 
@@ -93,7 +94,7 @@ public class Miner {
 
             if(batch.size() >= config.BatchSize){
                 log.trace("Scheduling a new batch @ " + artifactCnt + " artifacts..");
-                Thread worker = new PomFileBatchResolver(batch);
+                Thread worker = new PomFileBatchResolver(batch, config);
                 this.threadPool.execute(worker);
                 batch = new ArrayList<>();
             }
@@ -103,7 +104,7 @@ public class Miner {
 
         if(batch.size() > 0){
             log.trace("Scheduling last batch @ " + artifactCnt + " artifacts..");
-            this.threadPool.execute(new PomFileBatchResolver(batch));
+            this.threadPool.execute(new PomFileBatchResolver(batch, config));
         }
         
         try{

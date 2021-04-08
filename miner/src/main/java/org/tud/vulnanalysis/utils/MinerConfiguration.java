@@ -17,4 +17,18 @@ public class MinerConfiguration {
     public String Neo4jUsername;
 
     public String Neo4jPassword;
+
+    public static MinerConfiguration getDefaultConfig(){
+        MinerConfiguration config = new MinerConfiguration();
+        config.WorkingDirectoryPath = ".";
+        config.MavenCentralLuceneIndexPath = ".";
+        config.IncludeDependenciesInProfileDefinitions = false;
+        config.NumberOfWorkerThreads = 4;
+        config.BatchSize = 1000;
+        config.Neo4jUsername = "neo4j";
+        config.Neo4jHost = "bolt://localhost:7687";
+        config.Neo4jPassword = "<CHANGEME>";
+
+        return config;
+    }
 }

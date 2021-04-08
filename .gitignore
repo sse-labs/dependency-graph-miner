@@ -13,4 +13,5 @@ buildNumber.properties
 .idea/
 *.iml
 index/
+miner/local-repo
 !index/download_index_and_unpack.sh

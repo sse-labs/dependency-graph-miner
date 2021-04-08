@@ -9,6 +9,7 @@ import org.tud.vulnanalysis.model.MavenCentralRepository;
 import org.tud.vulnanalysis.pom.dependencies.DependencyResolverProvider;
 import org.tud.vulnanalysis.pom.dependencies.ResolverResult;
 import org.tud.vulnanalysis.storage.ArtifactStorageAdapter;
+import org.tud.vulnanalysis.utils.MinerConfiguration;
 
 import java.io.FileNotFoundException;
 import java.io.IOException;
@@ -25,10 +26,13 @@ public class PomFileBatchResolver extends Thread {
     private ArtifactStorageAdapter storageAdapter;
     private Logger log = LogManager.getLogger(PomFileBatchResolver.class);
 
+    private MinerConfiguration configuration;
 
-    public PomFileBatchResolver(List<ArtifactIdentifier> batch){
+
+    public PomFileBatchResolver(List<ArtifactIdentifier> batch, MinerConfiguration config){
         this.batch = batch;
         this.storageAdapter = new ArtifactStorageAdapter();
+        this.configuration = config;
     }
 
 
@@ -73,7 +77,7 @@ public class PomFileBatchResolver extends Thread {
             long lastModified = connection.getLastModified();
 
             ResolverResult dependcyResolverResult = ResolverProvider
-                    .buildResolver(connection.getInputStream(), identifier)
+                    .buildResolver(connection.getInputStream(), identifier, configuration)
                     .resolveDependencies();
 
             if(!dependcyResolverResult.hasDownloadErrors())
@@ -86,9 +90,25 @@ public class PomFileBatchResolver extends Thread {
                     if(ResolverProvider.backupResolverEnabled()){
                         log.trace("Retrying artifact with backup resolver: " + identifier.toString());
 
+                        ResolverResult oldResult = dependcyResolverResult;
+
                         dependcyResolverResult = ResolverProvider
-                                .buildBackupResolver(MavenRepo.openPomFileInputStream(identifier), identifier)
+                                .buildBackupResolver(MavenRepo.openPomFileInputStream(identifier), identifier, configuration)
                                 .resolveDependencies();
+
+                        // Copy old parent identifier for now
+                        if(oldResult.hasParentIdentifier() && !dependcyResolverResult.hasParentIdentifier()){
+                            dependcyResolverResult.setParentIdentifier(oldResult.getParentIdentifier());
+                        }
+
+                        if(!dependcyResolverResult.hasResults()){
+                            log.error("Backup resolver failed to produce any results.");
+                            dependcyResolverResult = oldResult;
+                        } else if(dependcyResolverResult.hasErrors()){
+                            log.warn("Backup resolver also produced errors while resolving " + identifier.toString());
+                        } else {
+                            log.info("Backup resolver successfully corrected resolver errors.");
+                        }
                     }
 
                 }

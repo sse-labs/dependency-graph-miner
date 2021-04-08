@@ -3,6 +3,7 @@ package org.tud.vulnanalysis.pom.dependencies;
 import org.tud.vulnanalysis.model.ArtifactDependency;
 import org.tud.vulnanalysis.model.ArtifactIdentifier;
 import org.tud.vulnanalysis.pom.PomFileUtils;
+import org.tud.vulnanalysis.utils.MinerConfiguration;
 
 import java.io.*;
 import java.nio.file.Files;
@@ -16,12 +17,12 @@ public class MvnPluginDependencyResolver extends DependencyResolver {
 
     private File pomFile;
 
-    //TODO: This needs to be handled differently..
-    private File workDir = Paths.get("C:\\Users\\Fujitsu\\Documents\\Temp\\my-maven-miner\\workdir").toFile();
+    private File workDir;// = Paths.get("C:\\Users\\Fujitsu\\Documents\\Temp\\my-maven-miner\\workdir").toFile();
     private File tempDir;
 
-    public MvnPluginDependencyResolver(InputStream pomFileStream, ArtifactIdentifier identifier) {
-        super(pomFileStream, identifier);
+    public MvnPluginDependencyResolver(InputStream pomFileStream, ArtifactIdentifier identifier, MinerConfiguration config) {
+        super(pomFileStream, identifier, config);
+        this.workDir = Paths.get(config.WorkingDirectoryPath).toFile();
         this.writePomFile();
     }
 

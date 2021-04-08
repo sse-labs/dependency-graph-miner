@@ -5,6 +5,7 @@ import org.apache.logging.log4j.Logger;
 import org.tud.vulnanalysis.model.ArtifactDependency;
 import org.tud.vulnanalysis.model.ArtifactIdentifier;
 import org.tud.vulnanalysis.model.MavenCentralRepository;
+import org.tud.vulnanalysis.utils.MinerConfiguration;
 import org.w3c.dom.Document;
 import org.w3c.dom.Element;
 import org.w3c.dom.Node;
@@ -42,12 +43,10 @@ public class RecursiveDependencyResolver extends DependencyResolver {
 
     private ResolverResult result;
 
-    private boolean includeDependenciesInProfiles;
-
     private Logger log = LogManager.getLogger(RecursiveDependencyResolver.class);
 
-    public RecursiveDependencyResolver(InputStream pomFileStream, ArtifactIdentifier identifier){
-        super(pomFileStream, identifier);
+    public RecursiveDependencyResolver(InputStream pomFileStream, ArtifactIdentifier identifier, MinerConfiguration config){
+        super(pomFileStream, identifier, config);
         // BuilderFactory for XML parsing
         builderFactory = DocumentBuilderFactory.newInstance();
 
@@ -64,12 +63,6 @@ public class RecursiveDependencyResolver extends DependencyResolver {
 
         // Final (flat) list of dependencies with resolved versions
         finalDependencySpecs = new HashSet<>();
-
-        includeDependenciesInProfiles = false;
-    }
-
-    public void setIncludeDependenciesInProfiles(boolean value){
-        this.includeDependenciesInProfiles = value;
     }
 
     @Override
@@ -333,7 +326,7 @@ public class RecursiveDependencyResolver extends DependencyResolver {
 
                 if(dependency == null && (context == DependencyElementContext.DEPENDENCY_MANAGEMENT ||
                         context == DependencyElementContext.PROJECT_DEPENDENCY ||
-                        (context == DependencyElementContext.PROFILE_PROJECT_DEPENDENCY && this.includeDependenciesInProfiles))){
+                        (context == DependencyElementContext.PROFILE_PROJECT_DEPENDENCY && config.IncludeDependenciesInProfileDefinitions))){
                     ResolverError error = new ResolverError.ParsingRelatedResolverError(
                             "Incomplete dependency specification found in artifact POM.", docIdent.toString());
                     this.result.appendError(error);
@@ -345,7 +338,7 @@ public class RecursiveDependencyResolver extends DependencyResolver {
                 if(context == DependencyElementContext.DEPENDENCY_MANAGEMENT){
                     this.dependencyManagementSpecsPerHierarchyLevel.get(level).add(spec);
                 }
-                else if(context == DependencyElementContext.PROFILE_PROJECT_DEPENDENCY && this.includeDependenciesInProfiles){
+                else if(context == DependencyElementContext.PROFILE_PROJECT_DEPENDENCY && config.IncludeDependenciesInProfileDefinitions){
                     this.dependencySpecsPerHierarchyLevel.get(level).add(spec);
                 }
                 else if(context == DependencyElementContext.PROJECT_DEPENDENCY){
