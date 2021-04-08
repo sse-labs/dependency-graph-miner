@@ -26,6 +26,11 @@ public class ArtifactDependency extends ArtifactIdentifier {
     }
 
     @Override
+    public String getCoordinates(){
+        return super.getCoordinates() + ":" + this.Scope;
+    }
+
+    @Override
     public String toString(){
         return String.join(":", super.GroupId, super.ArtifactId, super.Version, this.Scope);
     }

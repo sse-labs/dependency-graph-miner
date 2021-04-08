@@ -100,6 +100,11 @@ public class Miner {
 
             artifactCnt++;
         }
+
+        if(batch.size() > 0){
+            log.trace("Scheduling last batch @ " + artifactCnt + " artifacts..");
+            this.threadPool.execute(new PomFileBatchResolver(batch));
+        }
         
         try{
             log.info("Waiting for threadpool to finish execution...");

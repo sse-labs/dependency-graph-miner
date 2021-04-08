@@ -1,18 +1,14 @@
 package org.tud.vulnanalysis.pom;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import org.neo4j.driver.Session;
-import org.neo4j.driver.TransactionWork;
-import org.neo4j.driver.Value;
+
 import org.tud.vulnanalysis.model.ArtifactIdentifier;
-import org.tud.vulnanalysis.model.MavenArtifact;
 import org.tud.vulnanalysis.model.MavenCentralRepository;
 import org.tud.vulnanalysis.pom.dependencies.DependencyResolverProvider;
 import org.tud.vulnanalysis.pom.dependencies.ResolverResult;
-import org.tud.vulnanalysis.storage.Neo4jSessionFactory;
+import org.tud.vulnanalysis.storage.ArtifactStorageAdapter;
 
 import java.io.FileNotFoundException;
 import java.io.IOException;
@@ -20,23 +16,19 @@ import java.net.URLConnection;
 import java.util.ArrayList;
 import java.util.List;
 
-import static org.neo4j.driver.Values.parameters;
-
 public class PomFileBatchResolver extends Thread {
 
     private static DependencyResolverProvider ResolverProvider = DependencyResolverProvider.getInstance();
     private static MavenCentralRepository MavenRepo = MavenCentralRepository.getInstance();
-    private static Neo4jSessionFactory SessionFactory = Neo4jSessionFactory.getInstance();
 
     private List<ArtifactIdentifier> batch;
+    private ArtifactStorageAdapter storageAdapter;
     private Logger log = LogManager.getLogger(PomFileBatchResolver.class);
-
-    private ObjectMapper serializer;
 
 
     public PomFileBatchResolver(List<ArtifactIdentifier> batch){
         this.batch = batch;
-        this.serializer = new ObjectMapper();
+        this.storageAdapter = new ArtifactStorageAdapter();
     }
 
 
@@ -60,8 +52,8 @@ public class PomFileBatchResolver extends Thread {
                 failedIdentifiers.add(current);
         }
 
-        this.storeMavenArtifactBatch(resultBatch);
-        this.storeFailedIdentifiers(failedIdentifiers);
+        this.storageAdapter.storeArtifactBatch(resultBatch);
+        this.storageAdapter.storeFailedIdentifiers(failedIdentifiers);
 
         this.batch = null;
         log.info("Finished processing batch.");
@@ -130,71 +122,6 @@ public class PomFileBatchResolver extends Thread {
             log.error("Unexpected error while processing artifact identifier " + identifier.toString(), x);
         }
         return null;
-    }
-
-    private void storeMavenArtifactBatch(List<ResolverResult> resultBatch){
-        try(Session session = SessionFactory.buildSession()){
-            for(ResolverResult result : resultBatch){
-                MavenArtifact artifact =
-                        new MavenArtifact(result.getRootArtifactIdentifier(), result.LastModified, result.getResults());
-
-                if(result.hasParentIdentifier()){
-                    artifact.setParent(result.getParentIdentifier());
-                }
-
-                session.writeTransaction((TransactionWork<Void>) transaction -> {
-                    transaction.run("CREATE (:Artifact {groupId: $group, artifactId: $artifact, version: $version, "+
-                            "createdAt: $created, parentCoords: $parent, coordinates: $coords, errorsWhileResolving: $resolvererrors, " +
-                                    "dependencies: $deps, hasDownloadErrors: $downloaderrors})",
-                            buildParamMap(artifact, result.getErrors().size(), result.hasDownloadErrors()));
-                    return null;
-                });
-            }
-        }
-        catch(Exception x){
-            log.error("Critical failure while storing artifacts", x);
-        }
-    }
-
-    private Value buildParamMap(MavenArtifact artifact, int resolverErrors, boolean hasDownloadErrors){
-        String depdendencyString = "null";
-
-        try{
-            depdendencyString = this.serializer.writeValueAsString(artifact.getDependencies());
-        }
-        catch(Exception x){
-            log.error("Failed to serialize dependencies.", x);
-        }
-
-        return parameters(
-          "group", artifact.getIdentifier().GroupId,
-          "artifact", artifact.getIdentifier().ArtifactId,
-          "version", artifact.getIdentifier().Version,
-          "created", artifact.getLastModified(),
-          "parent", artifact.getParent() != null ? artifact.getParent().getCoordinates() : "none",
-          "coords", artifact.getIdentifier().getCoordinates(),
-          "resolvererrors", resolverErrors,
-          "downloaderrors", hasDownloadErrors,
-          "deps", depdendencyString
-        );
-    }
-
-    private void storeFailedIdentifiers(List<ArtifactIdentifier> identifierList){
-        try(Session session = SessionFactory.buildSession()){
-            for(ArtifactIdentifier current : identifierList){
-                session.writeTransaction((TransactionWork<Void>) tx -> {
-                    tx.run("CREATE (:ProcessingError {groupId: $group, artifactId: $artifact, version: $version, coordinates: $coords})",
-                            parameters("group", current.GroupId,
-                                    "artifact", current.ArtifactId,
-                                    "version", current.Version,
-                                    "coords", current.getCoordinates()));
-                    return null;
-                });
-            }
-        }
-        catch(Exception x){
-            log.error("Critical failure while storing failed identifiers", x);
-        }
     }
 
 }
