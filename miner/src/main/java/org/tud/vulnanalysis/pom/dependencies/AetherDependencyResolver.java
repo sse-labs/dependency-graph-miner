@@ -77,7 +77,6 @@ public class AetherDependencyResolver extends DependencyResolver {
 
         try{
             ArtifactDescriptorResult result = this.repoSystem.readArtifactDescriptor(this.repoSession, request);
-
             r.setParentIdentifier(null); //TODO: Handle this
 
             Set<ArtifactDependency> deps = new HashSet<>();

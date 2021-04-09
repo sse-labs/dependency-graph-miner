@@ -1,5 +1,6 @@
 package org.tud.vulnanalysis.storage;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.neo4j.driver.*;
@@ -9,6 +10,7 @@ import org.tud.vulnanalysis.model.MavenArtifact;
 import org.tud.vulnanalysis.pom.dependencies.ResolverResult;
 
 import java.util.List;
+import java.util.stream.Collectors;
 
 import static org.neo4j.driver.Values.parameters;
 
@@ -16,6 +18,8 @@ public class ArtifactStorageAdapter {
 
     private final Logger log = LogManager.getLogger(ArtifactStorageAdapter.class);
     private final Neo4jSessionFactory SessionFactory = Neo4jSessionFactory.getInstance();
+
+    private final ObjectMapper serializer = new ObjectMapper();
 
     public ArtifactStorageAdapter(){
     }
@@ -33,18 +37,8 @@ public class ArtifactStorageAdapter {
                 session.writeTransaction((TransactionWork<Void>) transaction -> {
                     transaction.run("CREATE (:Artifact {groupId: $group, artifactId: $artifact, version: $version, "+
                                     "createdAt: $created, parentCoords: $parent, coordinates: $coords, errorsWhileResolving: $resolvererrors, " +
-                                    "hasDownloadErrors: $downloaderrors})",
+                                    "hasDownloadErrors: $downloaderrors, dependencies: $deps})",
                             buildParamMap(artifact, result.getErrors().size(), result.hasDownloadErrors()));
-
-                    for(ArtifactDependency dependency: artifact.getDependencies()){
-                        if(!artifactReferenceAlreadyExists(transaction, dependency.getCoordinates())){
-                            createArtifactReferenceAndConnect(dependency, artifact.getIdentifier().getCoordinates(),
-                                    transaction);
-                        } else {
-                            connectArtifactReferenceAndArtifact(artifact.getIdentifier().getCoordinates(),
-                                    dependency.getCoordinates(), transaction);
-                        }
-                    }
 
                     return null;
                 });
@@ -56,29 +50,6 @@ public class ArtifactStorageAdapter {
         }
 
         return true;
-    }
-
-    private void createArtifactReferenceAndConnect(ArtifactDependency dependency, String rootCoordinates, Transaction tx){
-        tx.run("MATCH (a: Artifact {coordinates: $coords}) CREATE (a)-[:DEPENDS_ON]->(:ArtifactReference {ecosystem: $ecosystem, scope: $scope, groupId: $g, artifactId: $a, version: $v, coordinates: $c})",
-                parameters("coords", rootCoordinates,
-                        "ecosystem", "maven",
-                        "scope", dependency.Scope,
-                        "g", dependency.GroupId,
-                        "a", dependency.ArtifactId,
-                        "v", dependency.Version,
-                        "c", dependency.getCoordinates()
-                ));
-    }
-
-    private boolean artifactReferenceAlreadyExists(Transaction tx, String artifactCoordinates){
-        Result result = tx.run("MATCH (ref: ArtifactReference {coordinates: $coords}) WITH COUNT(ref) AS cnt RETURN cnt",
-                parameters("coords", artifactCoordinates));
-        return result.single().get("cnt").asInt() > 0;
-    }
-
-    private void connectArtifactReferenceAndArtifact(String artifactCoords, String referenceCoords, Transaction tx){
-        tx.run("MATCH (a: Artifact {coordinates: $ac}) MATCH (r: ArtifactReference {coordinates: $rc}) MERGE (a)-[:DEPENDS_ON]->(r)",
-                parameters("ac", artifactCoords, "rc", referenceCoords));
     }
 
     public void storeFailedIdentifiers(List<ArtifactIdentifier> identifierList){
@@ -103,6 +74,20 @@ public class ArtifactStorageAdapter {
 
     private Value buildParamMap(MavenArtifact artifact, int resolverErrors, boolean hasDownloadErrors){
 
+        String dependencyString = null;
+
+        try{
+            List<String> dependencyCoordinates = artifact.getDependencies()
+                    .stream()
+                    .map(ArtifactDependency::getCoordinates)
+                    .collect(Collectors.toList());
+
+            dependencyString = this.serializer.writeValueAsString(dependencyCoordinates);
+        } catch(Exception x){
+            this.log.error("Failed to serialize dependencies as String!", x);
+            dependencyString = "error";
+        }
+
         return parameters(
                 "group", artifact.getIdentifier().GroupId,
                 "artifact", artifact.getIdentifier().ArtifactId,
@@ -111,7 +96,8 @@ public class ArtifactStorageAdapter {
                 "parent", artifact.getParent() != null ? artifact.getParent().getCoordinates() : "none",
                 "coords", artifact.getIdentifier().getCoordinates(),
                 "resolvererrors", resolverErrors,
-                "downloaderrors", hasDownloadErrors
+                "downloaderrors", hasDownloadErrors,
+                "deps", dependencyString
         );
     }
 }

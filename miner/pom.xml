@@ -86,10 +86,23 @@
 			<version>${log4j-version}</version>
 		</dependency>
 
+		<!-- This makes sure slf4j logging of Aether is rerouted to our log4j implementation-->
+		<dependency>
+			<groupId>org.apache.logging.log4j</groupId>
+			<artifactId>log4j-slf4j-impl</artifactId>
+			<version>2.14.1</version>
+		</dependency>
+
 		<dependency>
 			<groupId>org.neo4j.driver</groupId>
 			<artifactId>neo4j-java-driver</artifactId>
 			<version>4.2.0</version>
+		</dependency>
+
+		<dependency>
+			<groupId>com.fasterxml.jackson.core</groupId>
+			<artifactId>jackson-databind</artifactId>
+			<version>2.12.2</version>
 		</dependency>
 
 		<dependency>

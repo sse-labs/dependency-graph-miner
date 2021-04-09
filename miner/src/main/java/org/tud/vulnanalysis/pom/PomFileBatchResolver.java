@@ -83,7 +83,7 @@ public class PomFileBatchResolver extends Thread {
             if(!dependcyResolverResult.hasDownloadErrors())
             {
                 // If we have (possibly corrupt) results and errors while resolving, retry with slower implementation
-                if(dependcyResolverResult.hasErrors() && dependcyResolverResult.hasResults()){
+                if(dependcyResolverResult.hasErrors()){
                     log.warn("Got " + dependcyResolverResult.getErrors().size() +
                             " errors while resolving " + identifier.toString());
 
@@ -110,12 +110,6 @@ public class PomFileBatchResolver extends Thread {
                             log.info("Backup resolver successfully corrected resolver errors.");
                         }
                     }
-
-                }
-                // In this case it is unlikely that the backup resolver would make any difference
-                else if(dependcyResolverResult.hasErrors()){
-                    log.warn("Got " + dependcyResolverResult.getErrors().size() +
-                            " critical errors while resolving, not falling back: " + identifier.toString());
                 }
             } else {
                 log.warn("Got download errors for " + identifier.toString());
