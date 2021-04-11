@@ -39,7 +39,7 @@
 			  <configuration>
 				<archive>
 				  <manifest>
-					<mainClass>org.tud.vulnanalysis.Miner</mainClass>
+					<mainClass>org.tud.vulnanalysis.Program</mainClass>
 				  </manifest>
 				</archive>
 				<descriptorRefs>

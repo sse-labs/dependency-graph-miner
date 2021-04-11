@@ -6,8 +6,6 @@ import org.tud.vulnanalysis.lucene.BufferedGAVIterator;
 import org.tud.vulnanalysis.model.ArtifactIdentifier;
 import org.tud.vulnanalysis.pom.PomFileBatchResolver;
 import org.tud.vulnanalysis.pom.dependencies.*;
-import org.tud.vulnanalysis.storage.Neo4jSessionFactory;
-import org.tud.vulnanalysis.utils.ConfigReader;
 import org.tud.vulnanalysis.utils.MinerConfiguration;
 
 import java.io.File;
@@ -45,17 +43,6 @@ public class Miner {
         }
 
         try{
-            log.info("Initializing Neo4j storage backend (host: '" + config.Neo4jHost + "' user:'" +
-                    config.Neo4jUsername + "')");
-            Neo4jSessionFactory.initializeInstance(config);
-            log.info("Successfully initialized storage backend");
-        }
-        catch(Exception x){
-            log.error("Failed to initialized storage backend.", x);
-            return false;
-        }
-
-        try{
             log.info("Initializing lucene index, this might take a few minutes...");
 
             artifactIterator = new BufferedGAVIterator(luceneIndexDir.getAbsolutePath());
@@ -72,12 +59,6 @@ public class Miner {
 
         this.isInitialized = true;
         return true;
-    }
-
-    public void shutdown(){
-        if(Neo4jSessionFactory.getInstance() != null){
-            Neo4jSessionFactory.getInstance().close();
-        }
     }
 
     public void processArtifacts(){
@@ -116,29 +97,5 @@ public class Miner {
             log.error("Error while waiting for threadpool", ix);
         }
         log.info("Finished processing " + artifactCnt + " artifacts");
-    }
-
-    public static void main(String[] args) {
-
-        MinerConfiguration theConfig = ConfigReader.readConfiguration("miner.config");
-
-        if(theConfig == null){
-            LogManager.getRootLogger().error("Invalid configuration file, aborting.");
-            return;
-        }
-
-        Miner miner = new Miner(theConfig);
-
-        if(!miner.initialize()){
-            return;
-        }
-
-        long startTime = System.currentTimeMillis();
-        miner.processArtifacts();
-        long duration = System.currentTimeMillis() - startTime;
-
-        LogManager.getRootLogger().info("Processing took " + duration + " ms");
-
-        miner.shutdown();
     }
 }
