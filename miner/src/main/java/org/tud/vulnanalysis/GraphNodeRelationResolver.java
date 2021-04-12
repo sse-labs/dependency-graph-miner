@@ -1,7 +1,9 @@
 package org.tud.vulnanalysis;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.neo4j.driver.Record;
 import org.neo4j.driver.Result;
 import org.neo4j.driver.Session;
 import org.tud.vulnanalysis.storage.BufferedNodeInformationIterator;
@@ -12,7 +14,7 @@ import static org.neo4j.driver.Values.parameters;
 public class GraphNodeRelationResolver {
 
     private final Logger log = LogManager.getLogger(GraphNodeRelationResolver.class);
-    private final BufferedNodeInformationIterator iterator = new BufferedNodeInformationIterator();
+    private final ObjectMapper reader = new ObjectMapper();
 
     private int numberOfErrors;
     private int numberOfNodes;
@@ -28,27 +30,46 @@ public class GraphNodeRelationResolver {
         this.numberOfUnmatchedParents = 0;
     }
 
+    private void handleNodeRecord(Record record, Session session){
+        try{
+            String coords = record.get("coords").asString();
+            String dependenciesRaw = record.get("deps").asString();
+            String parentCoords = record.get("parent").asString();
+
+            if(this.numberOfNodes % 1000 == 0){
+                log.info("Processing relation " + this.numberOfNodes);
+            }
+
+            BufferedNodeInformationIterator.NodeInformation nodeInformation =
+                    new BufferedNodeInformationIterator.NodeInformation();
+
+            nodeInformation.nodeCoordinates = coords;
+            nodeInformation.parentCoordinates = parentCoords;
+            nodeInformation.nodeDependencies =  reader.readValue(dependenciesRaw, String[].class);
+
+            if(!this.makeRelationsExplicit(nodeInformation, session)){
+                this.numberOfErrors += 1;
+            }
+
+        } catch (Exception x){
+            log.error("Failed to handle node: " + record.get("coords").asString(), x);
+        } finally {
+            this.numberOfNodes += 1;
+        }
+
+    }
+
     public void createRelationsInGraph(){
 
-        this.iterator.buildIndex();
+        log.info("Start processing relations in graph...");
 
         try(Session session = Neo4jSessionFactory.getInstance().buildSession()){
-            while(this.iterator.hasNext()){
 
-                if(this.numberOfNodes % 1000 == 0){
-                    log.info("Processing relation " + this.numberOfNodes + " of " + this.iterator.getNumberOfNodes());
-                }
+            Result nodeIteratorResult =
+                    session.run("MATCH (a:Artifact) RETURN a.coordinates AS coords, a.dependencies AS deps, " +
+                            "a.parentCoords AS parent");
 
-                BufferedNodeInformationIterator.NodeInformation node = this.iterator.next();
-
-                if(!makeRelationsExplicit(node, session)){
-                    this.numberOfErrors += 1;
-                }
-
-                this.numberOfNodes += 1;
-            }
-        } catch (Exception x){
-            log.error("Uncaught error while resolving dependencies in graph.", x);
+            nodeIteratorResult.stream().forEach(record -> this.handleNodeRecord(record, session));
         }
 
         log.info("Finished processing " + this.numberOfNodes + " relations with " + this.numberOfErrors + " errors.");

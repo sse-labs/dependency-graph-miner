@@ -68,7 +68,7 @@ public class Program {
         }
 
         try{
-            if(mode == ExecutionMode.RESOLVER_ONLY || mode == ExecutionMode.ALL){
+            if(mode == ExecutionMode.MINER_ONLY || mode == ExecutionMode.ALL){
                 log.info("Starting to mine artifacts from Maven Central ...");
                 long startTime = System.currentTimeMillis();
                 Miner miner = new Miner(theConfig);
