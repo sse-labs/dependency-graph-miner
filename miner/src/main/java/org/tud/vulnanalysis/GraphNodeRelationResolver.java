@@ -30,8 +30,10 @@ public class GraphNodeRelationResolver {
         this.numberOfUnmatchedParents = 0;
     }
 
-    private void handleNodeRecord(Record record, Session session){
+    private void handleNodeRecord(Record record){
+        Session session = null;
         try{
+            session = Neo4jSessionFactory.getInstance().buildSession();
             String coords = record.get("coords").asString();
             String dependenciesRaw = record.get("deps").asString();
             String parentCoords = record.get("parent").asString();
@@ -55,6 +57,8 @@ public class GraphNodeRelationResolver {
             log.error("Failed to handle node: " + record.get("coords").asString(), x);
         } finally {
             this.numberOfNodes += 1;
+            if(session != null)
+                session.close();
         }
 
     }
@@ -69,7 +73,9 @@ public class GraphNodeRelationResolver {
                     session.run("MATCH (a:Artifact) RETURN a.coordinates AS coords, a.dependencies AS deps, " +
                             "a.parentCoords AS parent");
 
-            nodeIteratorResult.stream().forEach(record -> this.handleNodeRecord(record, session));
+            while(nodeIteratorResult.hasNext()){
+                this.handleNodeRecord(nodeIteratorResult.next());
+            }
         }
 
         log.info("Finished processing " + this.numberOfNodes + " relations with " + this.numberOfErrors + " errors.");
