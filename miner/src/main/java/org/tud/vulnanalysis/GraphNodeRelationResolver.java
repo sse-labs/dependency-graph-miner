@@ -6,7 +6,6 @@ import org.apache.logging.log4j.Logger;
 import org.neo4j.driver.Record;
 import org.neo4j.driver.Result;
 import org.neo4j.driver.Session;
-import org.tud.vulnanalysis.storage.BufferedNodeInformationIterator;
 import org.tud.vulnanalysis.storage.Neo4jSessionFactory;
 
 import static org.neo4j.driver.Values.parameters;
@@ -31,34 +30,29 @@ public class GraphNodeRelationResolver {
     }
 
     private void handleNodeRecord(Record record){
-        Session session = null;
-        try{
-            session = Neo4jSessionFactory.getInstance().buildSession();
+        try (Session session = Neo4jSessionFactory.getInstance().buildSession()) {
             String coords = record.get("coords").asString();
             String dependenciesRaw = record.get("deps").asString();
             String parentCoords = record.get("parent").asString();
 
-            if(this.numberOfNodes % 1000 == 0){
+            if (this.numberOfNodes % 1000 == 0) {
                 log.info("Processing relation " + this.numberOfNodes);
             }
 
-            BufferedNodeInformationIterator.NodeInformation nodeInformation =
-                    new BufferedNodeInformationIterator.NodeInformation();
+            NodeInformation nodeInformation = new NodeInformation();
 
             nodeInformation.nodeCoordinates = coords;
             nodeInformation.parentCoordinates = parentCoords;
-            nodeInformation.nodeDependencies =  reader.readValue(dependenciesRaw, String[].class);
+            nodeInformation.nodeDependencies = reader.readValue(dependenciesRaw, String[].class);
 
-            if(!this.makeRelationsExplicit(nodeInformation, session)){
+            if (!this.makeRelationsExplicit(nodeInformation, session)) {
                 this.numberOfErrors += 1;
             }
 
-        } catch (Exception x){
+        } catch (Exception x) {
             log.error("Failed to handle node: " + record.get("coords").asString(), x);
         } finally {
             this.numberOfNodes += 1;
-            if(session != null)
-                session.close();
         }
 
     }
@@ -85,7 +79,7 @@ public class GraphNodeRelationResolver {
 
     }
 
-    private boolean makeRelationsExplicit(BufferedNodeInformationIterator.NodeInformation node, Session session){
+    private boolean makeRelationsExplicit(NodeInformation node, Session session){
         try {
             session.writeTransaction(transaction -> {
                 Result result;
@@ -134,5 +128,13 @@ public class GraphNodeRelationResolver {
             log.error("Error while making dependencies explicit for node: " + node.nodeCoordinates, x);
             return false;
         }
+    }
+
+    private static class NodeInformation {
+        public String nodeCoordinates;
+
+        public String[] nodeDependencies;
+
+        public String parentCoordinates;
     }
 }
