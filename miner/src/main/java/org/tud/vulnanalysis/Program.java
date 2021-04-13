@@ -40,7 +40,7 @@ public class Program {
     }
 
     public enum ExecutionMode {
-        MINER_ONLY, RESOLVER_ONLY, ALL
+        MINER_ONLY, NODE_RESOLVER_ONLY, LIB_RESOLVER_ONLY, ALL
     }
 
     public static void main(String[] args){
@@ -53,17 +53,30 @@ public class Program {
         if(!Program.initStorageConnection(theConfig))
             System.exit(2);
 
-        // Default execution mode
-        ExecutionMode mode = ExecutionMode.MINER_ONLY;
+        ExecutionMode mode = null;
 
-        if(args.length == 1 && args[0].equalsIgnoreCase("resolve")){
-            mode = ExecutionMode.RESOLVER_ONLY;
-        } else if(args.length == 1 && args[0].equalsIgnoreCase("all")){
-            mode = ExecutionMode.ALL;
-        } else if(args.length == 1 && args[0].equalsIgnoreCase("mine")){
+        if(args.length == 0){
             mode = ExecutionMode.MINER_ONLY;
-        } else if(args.length > 0){
-            log.error("Usage: Program [resolve|mine|all]");
+        } else if (args.length == 1){
+            switch(args[0].toLowerCase()){
+                case "resolve-nodes":
+                    mode = ExecutionMode.NODE_RESOLVER_ONLY;
+                    break;
+                case "resolve-libs":
+                    mode = ExecutionMode.LIB_RESOLVER_ONLY;
+                    break;
+                case "mine":
+                    mode = ExecutionMode.MINER_ONLY;
+                    break;
+                case "all":
+                    mode = ExecutionMode.ALL;
+                    break;
+                default:
+                    log.error("Usage: Program [resolve-nodes|resolve-libs|mine|all]");
+                    System.exit(1);
+            }
+        } else {
+            log.error("Usage: Program [resolve-nodes|resolve-libs|mine|all]");
             System.exit(1);
         }
 
@@ -80,7 +93,7 @@ public class Program {
                 log.info("Finished mining artifacts in " + durationSeconds + " seconds");
             }
 
-            if(mode == ExecutionMode.RESOLVER_ONLY || mode == ExecutionMode.ALL){
+            if(mode == ExecutionMode.NODE_RESOLVER_ONLY || mode == ExecutionMode.ALL){
                 log.info("Starting to resolve artifact dependencies in graph ...");
                 long startTime = System.currentTimeMillis();
                 GraphNodeRelationResolver resolver = new GraphNodeRelationResolver();
@@ -88,8 +101,19 @@ public class Program {
                 resolver.createRelationsInGraph();
 
                 long durationSeconds = (System.currentTimeMillis() - startTime) / 1000;
-                log.info("Finished resolving relations in " + durationSeconds + " seconds");
+                log.info("Finished resolving node relations in " + durationSeconds + " seconds");
 
+            }
+
+            if(mode == ExecutionMode.LIB_RESOLVER_ONLY || mode == ExecutionMode.ALL){
+                log.info("Starting to resolve library relations in graph ...");
+                long startTime = System.currentTimeMillis();
+                LibraryVersionRelationResolver resolver = new LibraryVersionRelationResolver();
+
+                resolver.resolveAllLibraryRelations();
+
+                long durationSeconds = (System.currentTimeMillis() - startTime) / 1000;
+                log.info("Finished resolving library relations in " + durationSeconds + " seconds");
             }
         } finally {
             Program.tryShutdownStorageConnection();
