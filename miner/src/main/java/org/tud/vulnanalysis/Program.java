@@ -108,7 +108,7 @@ public class Program {
             if(mode == ExecutionMode.LIB_RESOLVER_ONLY || mode == ExecutionMode.ALL){
                 log.info("Starting to resolve library relations in graph ...");
                 long startTime = System.currentTimeMillis();
-                LibraryVersionRelationResolver resolver = new LibraryVersionRelationResolver();
+                LibraryVersionRelationResolver resolver = new LibraryVersionRelationResolver(theConfig);
                 resolver.initialize();
 
                 resolver.resolveAllLibraryRelations();

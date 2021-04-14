@@ -11,10 +11,14 @@ import org.neo4j.driver.Result;
 import org.neo4j.driver.Session;
 import org.tud.vulnanalysis.storage.BufferedLibraryIdentifierIterator;
 import org.tud.vulnanalysis.storage.Neo4jSessionFactory;
+import org.tud.vulnanalysis.utils.MinerConfiguration;
 
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 
 import static org.neo4j.driver.Values.parameters;
 
@@ -24,13 +28,17 @@ public class LibraryVersionRelationResolver {
     private final Logger log = LogManager.getLogger(LibraryVersionRelationResolver.class);
 
     private final BufferedLibraryIdentifierIterator libIdentIterator;
+    private final ExecutorService threadPool;
 
     private int numberOfVersionParserErrors = 0;
     private int numberOfLibrariesHandled = 0;
     private int numberOfLibrariesFailed = 0;
 
-    public LibraryVersionRelationResolver(){
+    private int totalBatchCnt = -1;
+
+    public LibraryVersionRelationResolver(MinerConfiguration config){
         this.libIdentIterator = new BufferedLibraryIdentifierIterator();
+        this.threadPool = Executors.newFixedThreadPool(config.NumberOfWorkerThreads);
     }
 
     public void initialize(){
@@ -44,22 +52,69 @@ public class LibraryVersionRelationResolver {
             return;
         }
 
-        log.info("Starting to resolve library relations...");
+        log.info("Starting to schedule library relations...");
+
+        List<String> batch = new ArrayList<>();
+        int batchNumber = 0;
 
         while(this.libIdentIterator.hasNext()){
-            if(!handleLibrary(this.libIdentIterator.next())){
-                this.numberOfLibrariesFailed += 1;
-            }
+            batch.add(this.libIdentIterator.next());
 
-            if(this.numberOfLibrariesHandled % 100 == 0){
-                log.info("Processing library " + this.numberOfLibrariesHandled + " of " + this.libIdentIterator.getIndexSize());
+            if(batch.size() >= 100){
+                int finalBatchNumber = batchNumber;
+                List<String> finalBatch = batch;
+
+                Thread worker = new Thread(() -> handleLibraryBatch(finalBatch, finalBatchNumber));
+
+                this.threadPool.execute(worker);
+
+                batchNumber += 1;
+                batch = new ArrayList<>();
             }
 
             this.numberOfLibrariesHandled += 1;
         }
 
+        if(batch.size() > 0){
+            List<String> finalBatch1 = batch;
+            int finalBatchNumber1 = batchNumber;
+            Thread worker = new Thread(() -> handleLibraryBatch(finalBatch1, finalBatchNumber1));
+            this.threadPool.execute(worker);
+        }
+
+        this.totalBatchCnt = batchNumber;
+
+        try{
+            log.info("Waiting for threadpool to finish execution...");
+            threadPool.shutdown();
+            threadPool.awaitTermination(10, TimeUnit.DAYS);
+        }
+        catch(InterruptedException ix){
+            log.error("Error while waiting for threadpool", ix);
+        }
+
         log.info("Successfully processed " + this.numberOfLibrariesHandled + " libraries.");
         log.info("Got " + this.numberOfLibrariesFailed + " library failures and a total of " + this.numberOfVersionParserErrors + " version parser errors.");
+    }
+
+    private void handleLibraryBatch(List<String> batch, int batchNumber){
+        log.info("Start working on batch " + batchNumber + " of " + this.totalBatchCnt);
+
+        int cnt = 0;
+
+        for(String libIdent : batch){
+            if(cnt % 10 == 0){
+                log.info("Processing library identifier in batch (number " + batchNumber + "): " + cnt + " / " + batch.size());
+            }
+
+            if(!this.handleLibrary(libIdent)){
+                this.numberOfLibrariesFailed += 1;
+            }
+
+            cnt++;
+        }
+
+        log.info("Finished processing batch " + batchNumber + " of " + this.totalBatchCnt);
     }
 
     private boolean handleLibrary(String libraryIdentifier){
@@ -136,19 +191,13 @@ public class LibraryVersionRelationResolver {
     }
 
     private void createNextVersionRelation(String coordinatesCurrent, String coordinatesNext, Session session){
-        session.writeTransaction(transaction -> {
-            transaction.run("MATCH (a:Artifact {coordinates: $ca}) MATCH (b:Artifact {coordinates: $na}) " +
-                    "CREATE (a)-[:NEXT]->(b)", parameters("ca", coordinatesCurrent, "na", coordinatesNext));
-            return null;
-        });
+        session.run("MATCH (a:Artifact {coordinates: $ca}) MATCH (b:Artifact {coordinates: $na}) " +
+                "CREATE (a)-[:NEXT]->(b)", parameters("ca", coordinatesCurrent, "na", coordinatesNext));
     }
 
     private void createNextReleaseRelation(String coordinatesCurrent, String coordinatesNext, Session session){
-        session.writeTransaction(transaction -> {
-            transaction.run("MATCH (a:Artifact {coordinates: $ca}) MATCH (b:Artifact {coordinates: $na}) " +
-                    "CREATE (a)-[:NEXT_RELEASE]->(b)", parameters("ca", coordinatesCurrent, "na", coordinatesNext));
-            return null;
-        });
+        session.run("MATCH (a:Artifact {coordinates: $ca}) MATCH (b:Artifact {coordinates: $na}) " +
+                "CREATE (a)-[:NEXT_RELEASE]->(b)", parameters("ca", coordinatesCurrent, "na", coordinatesNext));
     }
 
     private static class LibraryRelease {
