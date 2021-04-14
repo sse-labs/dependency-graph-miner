@@ -49,7 +49,7 @@ public class LibraryVersionRelationResolver {
                 this.numberOfLibrariesFailed += 1;
             }
 
-            if(this.numberOfLibrariesHandled % 1000 == 0){
+            if(this.numberOfLibrariesHandled % 100 == 0){
                 log.info("Processing library " + this.numberOfLibrariesHandled + " of " + this.libIdentIterator.getIndexSize());
             }
 
