@@ -4,6 +4,8 @@ import com.vdurmont.semver4j.Semver;
 import com.vdurmont.semver4j.SemverException;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.maven.artifact.versioning.ArtifactVersion;
+import org.apache.maven.artifact.versioning.DefaultArtifactVersion;
 import org.neo4j.driver.Record;
 import org.neo4j.driver.Result;
 import org.neo4j.driver.Session;
@@ -79,9 +81,10 @@ public class LibraryVersionRelationResolver {
                 release.CreatedAt = record.get("created").asLong();
 
                 try{
-                    release.Version = new Semver(release.RawVersion, Semver.SemverType.LOOSE);
-                } catch(SemverException sx){
-                    log.error("Failed to interpret semantic version: " + release.RawVersion, sx);
+                    release.Version = new DefaultArtifactVersion(release.RawVersion);
+                    //release.Version = new Semver(release.RawVersion, Semver.SemverType.LOOSE);
+                } catch(Exception x){
+                    log.error("Failed to interpret semantic version: " + release.RawVersion, x);
                     this.numberOfVersionParserErrors += 1;
                     continue;
                 }
@@ -151,6 +154,7 @@ public class LibraryVersionRelationResolver {
     private static class LibraryRelease {
         String RawVersion;
         long CreatedAt;
-        Semver Version;
+        //Semver Version;
+        ArtifactVersion Version;
     }
 }
