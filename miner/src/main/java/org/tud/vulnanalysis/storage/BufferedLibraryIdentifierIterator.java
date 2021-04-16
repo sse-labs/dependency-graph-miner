@@ -19,6 +19,8 @@ public class BufferedLibraryIdentifierIterator implements Iterator<String> {
 
     private int nextIndex;
 
+    private boolean incrementalOnly = false;
+
     public BufferedLibraryIdentifierIterator(){
         this.identifierIndex = new ArrayList<>();
         this.isInitialized = false;
@@ -36,13 +38,16 @@ public class BufferedLibraryIdentifierIterator implements Iterator<String> {
             return this.identifierIndex.size();
     }
 
+    public void excludeLibrariesWithNextRelations(){
+        this.incrementalOnly = true;
+    }
+
     public void buildIndex(){
 
         log.info("Start building index of all library identifiers...");
 
         try(Session session = sessionFactory.buildSession()){
-            Result result =
-                    session.run("MATCH (a:Artifact) WITH a.groupId + ':' + a.artifactId AS lib RETURN DISTINCT lib");
+            Result result = session.run(this.buildIteratorQuery());
 
             while(result.hasNext()){
                identifierIndex.add(result.next().get("lib").asString());
@@ -74,5 +79,15 @@ public class BufferedLibraryIdentifierIterator implements Iterator<String> {
         this.nextIndex += 1;
 
         return identifier;
+    }
+
+    private String buildIteratorQuery(){
+        if(this.incrementalOnly){
+            return "MATCH (a:Artifact) WHERE NOT EXISTS ((a)-[:NEXT]->(:Artifact)) " +
+                    "AND NOT EXISTS((a)<-[:NEXT]-(:Artifact)) " +
+                    "WITH a.groupId + ':' + a.artifactId AS lib RETURN DISTINCT lib";
+        } else {
+            return "MATCH (a:Artifact) WITH a.groupId + ':' + a.artifactId AS lib RETURN DISTINCT lib";
+        }
     }
 }

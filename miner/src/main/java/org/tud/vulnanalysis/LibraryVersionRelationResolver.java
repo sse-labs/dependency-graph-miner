@@ -38,6 +38,7 @@ public class LibraryVersionRelationResolver {
 
     public LibraryVersionRelationResolver(MinerConfiguration config){
         this.libIdentIterator = new BufferedLibraryIdentifierIterator();
+        this.libIdentIterator.excludeLibrariesWithNextRelations(); // incremental only
         this.threadPool = Executors.newFixedThreadPool(config.NumberOfWorkerThreads);
     }
 
@@ -87,7 +88,7 @@ public class LibraryVersionRelationResolver {
         try{
             log.info("Waiting for threadpool to finish execution...");
             threadPool.shutdown();
-            threadPool.awaitTermination(10, TimeUnit.DAYS);
+            threadPool.awaitTermination(15, TimeUnit.DAYS);
         }
         catch(InterruptedException ix){
             log.error("Error while waiting for threadpool", ix);
