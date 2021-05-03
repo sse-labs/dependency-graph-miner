@@ -7,13 +7,33 @@ You will need the following prerequisites instelled on your machine in order to 
 * Docker
 
 ## Setting up Neo4j
-TODO
+**TODO**
 
 ## Running the Maven Central Miner
 **TODO:** Automatically create indices
-* Config file
-* prepare-exeuction.sh
-* run
+Open the file `maven-miner/miner/miner.config` and enter the connection details for your Neo4j graph database by replacing the default configuration:
+
+```
+neo4j.host=bolt://localhost:7687
+neo4j.user=neo4j
+neo4j.pass=CHANGEME
+```
+
+Navigate to the `maven-miner` subdirectory and execute the preparation script. This will download and initialize the Maven Central Lucene index to `./index` and build the docker image `maven-miner:1.0-SNAPSHOT`. **Be aware:** Initializing the Lucene index requires a working Java installation and can take around one hour of execution time.
+
+```
+cd ./maven-miner
+./prepare-execution.sh
+```
+
+Run the docker image to execute the Maven Miner. This requires you to mount the `./index` directory into the container's file system (at `/index`), as shown below:
+
+```
+docker run --detach --name maven-miner -v ./index:/index maven-miner:1.0-SNAPSHOT
+```
+
+**Be aware:** Executing the Maven Miner may take around two weeks to complete, even on well-equipped machines. Make sure that you can ensure a sufficiently long uptime of your machine before starting the container.
+
 
 ## Running the NPM / Nuget Miner
 Navigate to the `npm-nuget-miner` subdirectory and execute the preparation script. This will build the two docker images `npm-miner:1.0-SNAPSHOT` and `nuget-miner:1.0-SNAPSHOT`.
