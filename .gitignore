@@ -12,3 +12,5 @@ buildNumber.properties
 
 .idea/
 *.iml
+maven-miner/index/
+!maven-miner/index/download_index_and_unpack.sh
