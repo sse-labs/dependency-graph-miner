@@ -95,7 +95,8 @@ class NugetNodeCrawler(object):
             f"dependencies: '{dependency_string}', "
             f"authors: '{authors}', "
             f"commit_id: '{commit_id}', "
-            f"unique_id: '{unique_id}' "
+            f"unique_id: '{unique_id}', "
+            f"unlisted: {package.is_unlisted} "
             "})")
 
         return query

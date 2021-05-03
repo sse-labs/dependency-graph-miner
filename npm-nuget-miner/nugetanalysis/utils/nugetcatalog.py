@@ -133,6 +133,7 @@ class NugetPackage(object):
         self.commit_id = None
         self.authors_string = None
         self.unique_id = None
+        self.is_unlisted = False
     
     @staticmethod
     def from_json(json_obj):
@@ -145,6 +146,9 @@ class NugetPackage(object):
             created = 'Unknown'
 
         package = NugetPackage(id, version, created)
+
+        if json_obj['published'].startswith('1900'):
+            package.is_unlisted = True
 
         if 'authors' in json_obj:
             package.authors_string = json_obj['authors']
