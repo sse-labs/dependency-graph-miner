@@ -23,10 +23,9 @@ p.store_all_packages()
 resolver = ArtifactDependencyResolver()
 resolver.process_artifact_dependencies("NpmPackage")
 
-# Create NEXT relations
+# Create NEXT and NEXT_RELEASE relations
 creator = NextVersionRelationCreator("npm")
 creator.process_all_libs()
-#TODO: NEXT_RELEASE
 
 # Create CURRENT_TARGET relations
 detector = LatestDependencyDetector("npm")

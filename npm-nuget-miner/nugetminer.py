@@ -12,10 +12,10 @@ crawler.do_crawling()
 resolver = ArtifactDependencyResolver()
 resolver.process_artifact_dependencies("NugetPackage")
 
-# Create NEXT relations
+# Create NEXT and NEXT_RELEASE relations
 creator = NextVersionRelationCreator("nuget")
 creator.process_all_libs()
-#TODO: NEXT_RELEASE
+
 
 # Create CURRENT_TARGET relations
 detector = LatestDependencyDetector("nuget")

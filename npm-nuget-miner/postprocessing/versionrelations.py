@@ -66,7 +66,19 @@ class NextVersionRelationCreator(object):
             version = artifact_record['version']
             version_coords_dict[version] = coords
             version_list.append(VersionNumber(version, use_filling=False))
+        
+        # Do NEXT_RELEASE relation
+        last_coordinates = None
+        for version in version_list:
+            current_coordinates = version_coords_dict[version.original_string_representation]
 
+            if last_coordinates != None:
+                merge_query = self.__build_merge_query(last_coordinates, current_coordinates, "NEXT_RELEASE")
+                local_session.run(merge_query)
+
+            last_coordinates = current_coordinates
+
+        # Do NEXT relation
         version_list.sort()
 
         last_coordinates = None
@@ -75,7 +87,7 @@ class NextVersionRelationCreator(object):
             current_coordinates = version_coords_dict[version.original_string_representation]
 
             if last_coordinates != None:
-                merge_query = self.__build_merge_query(last_coordinates, current_coordinates)
+                merge_query = self.__build_merge_query(last_coordinates, current_coordinates, "NEXT")
                 local_session.run(merge_query)
 
             last_coordinates = current_coordinates
@@ -107,17 +119,17 @@ class NextVersionRelationCreator(object):
         query = f"MATCH (a:{self.node_label} {{package_id: '{lib_id}'}}) "
 
         if self.ecosystem == 'nuget':
-            query = query + "WITH a.package_version AS version, "
+            query = query + "WITH a.package_version AS version, a.created_at AS date, "
         else:
-            query = query + "WITH a.version AS version, "
+            query = query + "WITH a.version AS version, a.release_date AS date, "
         
-        query = query + "a.coordinates AS coords RETURN coords, version"
+        query = query + "a.coordinates AS coords ORDER BY date RETURN coords, version"
 
         return query
     
-    def __build_merge_query(self, source_coords: str, target_coords: str)->str:
+    def __build_merge_query(self, source_coords: str, target_coords: str, relation_name: str)->str:
 
         return (f"MATCH (s: {self.node_label} {{coordinates: '{source_coords}'}}) "
             f"MATCH (t: {self.node_label} {{coordinates: '{target_coords}'}}) "
-            "MERGE (s)-[:NEXT]->(t)")
+            f"MERGE (s)-[:{relation_name}]->(t)")
     
