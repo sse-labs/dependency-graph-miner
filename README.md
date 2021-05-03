@@ -7,10 +7,19 @@ You will need the following prerequisites instelled on your machine in order to 
 * Docker
 
 ## Setting up Neo4j
-**TODO**
+You need to make an empty Neo4j graph database accessible to the Miners in order to store the dependency graphs. All Miners have been tested with the Neo4j Docker image in version `4.0.2`. In order to install the image, simply execute `docker pull neo4j:4.0.2`. When running Neo4j via Docker, you 
+* Must forward port `7687` (the `bolt` protocol) in order to make the db accessible to the miners
+* Must set password authentication via the environment variables (`--env NEO4J_AUTH=user/pass`)
+* Should mount a volume to the container's `/data` directory in order to persist the database outside the container
+* Should forward port `7474` in order to access the web interface of Neo4j
+
+An example invocation may look like this:
+
+```
+docker run --detach --name miner-db -v /path/on/host:/data -p 7687:7687 -p 7474:8080 --env NEO4J_AUTH=neo4j/CHANGEME neo4j:4.0.2
+```
 
 ## Running the Maven Central Miner
-**TODO:** Automatically create indices
 Open the file `maven-miner/miner/miner.config` and enter the connection details for your Neo4j graph database by replacing the default configuration:
 
 ```

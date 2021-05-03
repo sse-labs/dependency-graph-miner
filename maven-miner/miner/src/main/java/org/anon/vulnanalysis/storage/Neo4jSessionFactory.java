@@ -1,5 +1,7 @@
 package org.anon.vulnanalysis.storage;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.neo4j.driver.*;
 import org.anon.vulnanalysis.utils.MinerConfiguration;
 
@@ -11,9 +13,25 @@ public class Neo4jSessionFactory  implements AutoCloseable{
 
     private MinerConfiguration minerConfig;
 
+    private static final Logger log = LogManager.getLogger(Neo4jSessionFactory.class);
+
     public static void initializeInstance(MinerConfiguration config){
         if(instance == null)
             instance = new Neo4jSessionFactory(config);
+    }
+
+    public static boolean ensureIndicesPresent(){
+        try(Session session = instance.buildSession()){
+
+            session.run("CREATE INDEX IF NOT EXISTS FOR (a:Artifact) ON (a.groupId, a.artifactId)");
+            session.run("CREATE CONSTRAINT IF NOT EXISTS ON (a:Artifact) ASSERT a.coordinates IS UNIQUE");
+            session.run("CREATE CONSTRAINT IF NOT EXISTS ON (ref:ArtifactReference) ASSERT ref.coordinates IS UNIQUE");
+
+            return true;
+        } catch (Exception x){
+            log.error("Failed to create indices", x);
+            return false;
+        }
     }
 
     public static Neo4jSessionFactory getInstance(){

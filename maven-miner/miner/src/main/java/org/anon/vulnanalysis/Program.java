@@ -24,6 +24,8 @@ public class Program {
             log.info("Initializing Neo4j storage backend (host: '" + config.Neo4jHost + "' user:'" +
                     config.Neo4jUsername + "')");
             Neo4jSessionFactory.initializeInstance(config);
+            if(!Neo4jSessionFactory.ensureIndicesPresent())
+                throw new RuntimeException("Failed to create indices in DB");
             log.info("Successfully initialized storage backend");
         }
         catch(Exception x){
