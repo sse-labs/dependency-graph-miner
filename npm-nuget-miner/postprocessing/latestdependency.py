@@ -1,11 +1,12 @@
 from dependencygraphutils.neo4jsupport import Neo4jAdapter
+import os
 
 class LatestDependencyDetector(object):
 
-    def __init__(self, ecosystem:str, recursion_limit:int, print_skip = 50):
+    def __init__(self, ecosystem:str):
         self.ecosystem = ecosystem
-        self.recursion_limit = recursion_limit
-        self.print_skip = print_skip
+        self.recursion_limit = int(os.getenv('MAX_DEPTH', '250'))
+        self.print_skip = int(os.getenv('PRINT_SKIP', '50'))
 
         if ecosystem == 'nuget':
             self.ecosystem_label = 'Nuget'
