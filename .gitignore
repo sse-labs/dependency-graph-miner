@@ -14,3 +14,5 @@ buildNumber.properties
 *.iml
 maven-miner/index/
 !maven-miner/index/download_index_and_unpack.sh
+maven-miner/remotepass.file
+__pycache__
