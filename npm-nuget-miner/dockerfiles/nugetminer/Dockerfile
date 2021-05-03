@@ -2,7 +2,7 @@ FROM python:3.8.2-alpine3.11
 
 ENV PYTHONUNBUFFERED=1
 
-RUN pip install neo4j
+RUN pip install neo4j==1.7.6
 RUN pip install requests
 RUN pip install ijson
 
