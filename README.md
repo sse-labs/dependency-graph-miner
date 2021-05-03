@@ -2,7 +2,7 @@
 This repository contains tools that compute the dependency graphs for open artifact repositories and store them in a Neo4j graph database. Currently the NPM Registry, Maven Central and NuGet.org are supported.
 
 ## Prerequsites
-You will need the following tools to execute the tools contained in this repository:
+You will need the following prerequisites instelled on your machine in order to execute the tools contained in this repository:
 * JRE 8
 * Docker
 
@@ -10,6 +10,24 @@ You will need the following tools to execute the tools contained in this reposit
 TODO
 
 ## Running the Maven Central Miner
+**TODO:** Automatically create indices
 * Config file
 * prepare-exeuction.sh
 * run
+
+## Running the NPM / Nuget Miner
+Navigate to the `npm-nuget-miner` subdirectory and execute the preparation script. This will build the two docker images `npm-miner:1.0-SNAPSHOT` and `nuget-miner:1.0-SNAPSHOT`.
+
+```
+cd ./npm-nuget-miner
+./prepare-execution.sh
+```
+
+Run one of the docker images to build the corresponding dependency graph. The connection to your Neo4j graph database is configured via the three environment variables `NEO4J_URL`, `NEO4J_USER` (default `"neo4j"`) and `NEO4J_PASS` (default `"neo4j"`). The command shown below will run the NPM miner for a Neo4j DB instance that is reachable via the default Docker network IP on the default port for the `bolt` protocol (7687), with default user `neo4j` and password `CHANGEME123`. An instance of the Nuget Miner can be executed in the same fashion by simply replacing `"npm-miner:1.0-SNAPSHOT"` with `"nuget-miner:1.0-SNAPSHOT"`.
+
+```
+docker run --detach --name npm-miner --env NEO4J_URL=bolt://172.17.0.1:7687 --env NEO4J_PASS=CHANGEME123 npm-miner:1.0-SNAPSHOT
+```
+
+**Be aware:** Executing either of the two miners may take well over one month to complete, even on well-equipped machines. Make sure that you can ensure a sufficiently long uptime of your machine before starting the container.
+

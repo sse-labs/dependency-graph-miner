@@ -1,6 +1,7 @@
 from npmanalysis.npmutils import NpmIndexReader, NpmRegistryHelper
 from npmanalysis.npmmodel import NpmPackageVersion
 from dependencygraphutils.neo4jsupport import Neo4jAdapter
+from dependencygraphutils.indexutils import IndexHelper
 
 import os, os.path, threading, time, json
 
@@ -26,6 +27,7 @@ class NpmNodeProcessor(object):
         
         # Initialize the graph database connection
         self.graph_db_adapter = Neo4jAdapter.create_default_instance()
+        IndexHelper.create_indices()
         print(f'Successfully initialized Neo4j db connection to {neo4j_url}')
 
         # Read index range to work on

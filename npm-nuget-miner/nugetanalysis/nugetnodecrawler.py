@@ -1,5 +1,6 @@
 from nugetanalysis.utils.nugetcatalog import NugetCatalogHelper
 from dependencygraphutils.neo4jsupport import Neo4jAdapter
+from dependencygraphutils.indexutils import IndexHelper
 import threading, time, json, os
 
 ERROR_COUNT = 0
@@ -17,6 +18,7 @@ class NugetNodeCrawler(object):
 
         try:
             self.graph_db_adapter = Neo4jAdapter.create_default_instance()
+            IndexHelper.create_indices()
         except ConnectionRefusedError as cre:
             raise Exception(f'Failed to connect to Neo4j at {self.graph_db_url}. Is the graph db running?')
     
