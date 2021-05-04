@@ -28,7 +28,7 @@ class NpmNodeProcessor(object):
         # Initialize the graph database connection
         self.graph_db_adapter = Neo4jAdapter.create_default_instance()
         IndexHelper.create_indices(self.graph_db_adapter)
-        print(f'Successfully initialized Neo4j db connection to {neo4j_url}')
+        print(f'Successfully initialized Neo4j db connection')
 
         # Read index range to work on
         index_range_start = int(os.getenv('INDEX_START', '0'))
