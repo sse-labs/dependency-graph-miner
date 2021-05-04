@@ -16,7 +16,7 @@ You need to make an empty Neo4j graph database accessible to the Miners in order
 An example invocation may look like this:
 
 ```
-docker run --detach --name miner-db -v /path/on/host:/data -p 7687:7687 -p 7474:8080 --env NEO4J_AUTH=neo4j/CHANGEME neo4j:4.0.2
+docker run --detach --name miner-db -v /path/on/host:/data -p 7687:7687 -p 8080:7474 --env NEO4J_AUTH=neo4j/CHANGEME neo4j:4.0.2
 ```
 
 ## Running the Maven Central Miner
@@ -38,7 +38,7 @@ cd ./maven-miner
 Run the docker image to execute the Maven Miner. This requires you to mount the `./index` directory into the container's file system (at `/index`), as shown below:
 
 ```
-docker run --detach --name maven-miner -v ./index:/index maven-miner:1.0-SNAPSHOT
+docker run --detach --name maven-miner -v index:/index maven-miner:1.0-SNAPSHOT
 ```
 
 **Be aware:** Executing the Maven Miner may take around two weeks to complete, even on well-equipped machines. Make sure that you can ensure a sufficiently long uptime of your machine before starting the container.

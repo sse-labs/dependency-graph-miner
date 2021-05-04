@@ -23,9 +23,9 @@ public class Neo4jSessionFactory  implements AutoCloseable{
     public static boolean ensureIndicesPresent(){
         try(Session session = instance.buildSession()){
 
-            session.run("CREATE INDEX IF NOT EXISTS FOR (a:Artifact) ON (a.groupId, a.artifactId)");
-            session.run("CREATE CONSTRAINT IF NOT EXISTS ON (a:Artifact) ASSERT a.coordinates IS UNIQUE");
-            session.run("CREATE CONSTRAINT IF NOT EXISTS ON (ref:ArtifactReference) ASSERT ref.coordinates IS UNIQUE");
+            session.run("CREATE INDEX FOR (a:Artifact) ON (a.groupId, a.artifactId)");
+            session.run("CREATE CONSTRAINT ON (a:Artifact) ASSERT a.coordinates IS UNIQUE");
+            session.run("CREATE CONSTRAINT ON (ref:ArtifactReference) ASSERT ref.coordinates IS UNIQUE");
 
             return true;
         } catch (Exception x){
