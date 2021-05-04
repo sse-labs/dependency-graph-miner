@@ -20,7 +20,7 @@ class NugetNodeCrawler(object):
             self.graph_db_adapter = Neo4jAdapter.create_default_instance()
             IndexHelper.create_indices(self.graph_db_adapter)
         except ConnectionRefusedError as cre:
-            raise Exception(f'Failed to connect to Neo4j at {self.graph_db_url}. Is the graph db running?')
+            raise Exception(f'Failed to connect to Neo4j. Is the graph db running?')
     
     # Crawl all packages
     def do_crawling(self):
